@@ -11,7 +11,10 @@ void main() async {
   const initSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
   const initSettings = InitializationSettings(android: initSettingsAndroid);
 
-  await notificationsPlugin.initialize(initSettings);
+  // Uses named argument: settings
+  await notificationsPlugin.initialize(
+    settings: initSettings,
+  );
 
   // Request Android 13+ runtime permission
   await notificationsPlugin
@@ -38,11 +41,12 @@ class NotificationScreen extends StatelessWidget {
     );
     const details = NotificationDetails(android: androidDetails);
 
+    // Uses named arguments: id, title, body, notificationDetails
     await notificationsPlugin.show(
-      0,
-      'Test Alert',
-      'Notification is working successfully!',
-      details,
+      id: 0,
+      title: 'Test Alert',
+      body: 'Notification is working successfully!',
+      notificationDetails: details,
     );
   }
 
