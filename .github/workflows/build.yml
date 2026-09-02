@@ -1,18 +1,21 @@
-name: Build Ultra-Minimal Flutter arm64 APK
+name: Recreate Flutter Project & Push
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+permissions:
+  contents: write    # Grants permission to commit and push changes back to the repo
 
 jobs:
-  build-arm64:
+  recreate-repo:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up Java / JDK
-        uses: actions/setup-java@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -20,112 +23,39 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Fresh Flutter Project
+      - name: Clean Old Files and Generate New Flutter Project
         run: |
-          flutter create --org com.minimal --platforms android minimal_app
-          cd minimal_app
+          # 1. Clean out existing files (except .git and .github directory)
+          echo "Removing old files..."
+          find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' ! -name '.github' -exec rm -rf {} +
 
-      - name: Configure Aggressive R8 / ProGuard and ABI Split
-        working-directory: minimal_app
+          # 2. Get current repository name to use as a valid Flutter project name
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          # Format name: lowercase and replace non-alphanumeric chars with underscores
+          PROJECT_NAME=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_]+/_/g' | sed -E 's/^_+|_+$//g')
+
+          # If the resulting name is empty or starts with a number, fall back to a safe default
+          if [[ -z "$PROJECT_NAME" || "$PROJECT_NAME" =~ ^[0-9] ]]; then
+            PROJECT_NAME="flutter_app"
+          fi
+
+          echo "Generating new project: $PROJECT_NAME"
+
+          # 3. Create fresh Flutter project directly in the repository root
+          flutter create --project-name "$PROJECT_NAME" --org com.example .
+
+      - name: Commit and Push Clean Project
         run: |
-          # 1. Update android/app/build.gradle for R8 optimization & arm64 target
-          cat << 'EOF' > android/app/build.gradle
-          plugins {
-              id "com.android.application"
-              id "kotlin-android"
-              id "dev.flutter.flutter-gradle-plugin"
-          }
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          android {
-              namespace = "com.minimal.minimal_app"
-              compileSdk = flutter.compileSdkVersion
-              ndkVersion = flutter.ndkVersion
-
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
-
-              defaultConfig {
-                  applicationId = "com.minimal.minimal_app"
-                  minSdk = flutter.minSdkVersion
-                  targetSdk = flutter.targetSdkVersion
-                  versionCode = flutter.versionCode
-                  versionName = flutter.versionName
-
-                  ndk {
-                      abiFilters "arm64-v8a"
-                  }
-              }
-
-              buildTypes {
-                  release {
-                      signingConfig = signingConfigs.debug
-                      minifyEnabled true
-                      shrinkResources true
-                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-                  }
-              }
-
-              packaging {
-                  resources {
-                      excludes += [
-                          'META-INF/*.version',
-                          'META-INF/DEPENDENCIES',
-                          'META-INF/LICENSE*',
-                          'META-INF/NOTICE*',
-                          'DebugProbesKt.bin'
-                      ]
-                  }
-              }
-          }
-
-          flutter {
-              source = "../.."
-          }
-          EOF
-
-          # 2. Add minimal ProGuard rules
-          cat << 'EOF' > android/app/proguard-rules.pro
-          -dontwarn io.flutter.**
-          -keep class io.flutter.** { *; }
-          -dontwarn androidx.**
-          -assumenosideeffects class android.util.Log {
-              public static boolean isLoggable(java.lang.String, int);
-              public static int v(...);
-              public static int d(...);
-              public static int i(...);
-              public static int w(...);
-          }
-          EOF
-
-      - name: Build Ultra-Minimal arm64 APK
-        working-directory: minimal_app
-        run: |
-          mkdir -p build/symbols
+          git add -A
           
-          # Target arm64, obfuscate Dart code, strip debug info & tree-shake unused icons
-          flutter build apk --release \
-            --target-platform=android-arm64 \
-            --obfuscate \
-            --split-debug-info=build/symbols \
-            --tree-shake-icons
-
-      - name: Inspect and Print Output Size
-        working-directory: minimal_app
-        run: |
-          echo "=== APK DETAILS ==="
-          ls -lh build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload arm64 Minimal APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: minimal-flutter-arm64-release
-          path: minimal_app/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-          retention-days: 7
+          # Check if there are changes before committing
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: recreate clean Flutter project and remove legacy files"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
           
