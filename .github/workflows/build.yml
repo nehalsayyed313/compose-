@@ -13,7 +13,6 @@ on:
         default: 'master'
 
 env:
-  SKIP_JDK_VERSION_CHECK: "true"
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
 
 jobs:
@@ -38,16 +37,27 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: Install Compatible Android SDK & Build Tools
+      - name: Install Java 11 Compatible Android Command-line Tools & SDKs
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-          # Accept licenses and install platform 30 + build-tools 30.0.3
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-30" "build-tools;30.0.3" "platform-tools"
+          # Download and install cmdline-tools version 4.0 (Java 11 compatible)
+          mkdir -p /tmp/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip -O /tmp/cmdline-tools.zip
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
+          
+          mkdir -p $ANDROID_HOME/cmdline-tools/4.0
+          cp -r /tmp/cmdline-tools/cmdline-tools/* $ANDROID_HOME/cmdline-tools/4.0/
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/4.0/bin/sdkmanager --sdk_root=$ANDROID_HOME"
+
+          # Accept licenses and install platform 30 and build tools 30.0.3
+          yes | $SDKMANAGER --licenses || true
+          yes | $SDKMANAGER "platforms;android-30" "build-tools;30.0.3" "platform-tools"
+
+          echo "$ANDROID_HOME/cmdline-tools/4.0/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
       - name: Set up Node.js 14.x
         uses: actions/setup-node@v4
