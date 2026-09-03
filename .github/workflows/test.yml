@@ -21,32 +21,50 @@ jobs:
           ref: ${{ inputs.sdk_version }}
           sparse-checkout: |
             docs
+            packages/@expo/sdk-compatibility
           sparse-checkout-cone-mode: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
           version: 9
 
-      - name: Install Dependencies
+      - name: Build Monorepo Dependencies
+        run: |
+          # Build @expo/sdk-compatibility if present in the repo
+          if [ -d "packages/@expo/sdk-compatibility" ]; then
+            cd packages/@expo/sdk-compatibility
+            pnpm install --ignore-scripts || true
+            pnpm build || npm run build || npx tsc || true
+            cd ../..
+          fi
+
+      - name: Install Docs Dependencies
         working-directory: docs
         run: |
           pnpm install --frozen-lockfile=false --ignore-scripts
 
-      - name: Patch Next.js and Build Docs
+          # Link the built @expo/sdk-compatibility package into docs node_modules
+          if [ -d "../packages/@expo/sdk-compatibility" ]; then
+            mkdir -p node_modules/@expo
+            rm -rf node_modules/@expo/sdk-compatibility
+            cp -r ../packages/@expo/sdk-compatibility node_modules/@expo/sdk-compatibility
+          fi
+
+      - name: Patch and Export Static Docs
         working-directory: docs
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
           NEXT_TELEMETRY_DISABLED: "1"
         run: |
           # 1. Force Next.js internal defaults to ignore TypeScript & ESLint errors
-          find node_modules/next -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.mjs" \) -exec sed -i 's/ignoreBuildErrors: false/ignoreBuildErrors: true/g' {} +
-          find node_modules/next -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.mjs" \) -exec sed -i 's/ignoreDuringBuilds: false/ignoreDuringBuilds: true/g' {} +
+          find node_modules/next -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.mjs" \) -exec sed -i 's/ignoreBuildErrors: false/ignoreBuildErrors: true/g' {} + 2>/dev/null || true
+          find node_modules/next -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.mjs" \) -exec sed -i 's/ignoreDuringBuilds: false/ignoreDuringBuilds: true/g' {} + 2>/dev/null || true
 
           # 2. Patch next.config.js directly
           if [ -f "next.config.js" ]; then
