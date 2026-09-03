@@ -4,8 +4,11 @@ on: workflow_dispatch
 
 jobs:
   build:
-     runs-on: ubuntu-latest
-     container: nixos/nix:latest
-     steps:
-       - name: running 
-         run: nix
+    runs-on: ubuntu-latest
+    container: nixos/nix:latest
+    steps:
+      - name: Build remote flake
+        run: |
+          nix --extra-experimental-features "nix-command flakes" \
+            build "git+https://github.com/arthuraa/rocq-introduction.git" -L
+            
