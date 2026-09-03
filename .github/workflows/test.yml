@@ -8,72 +8,135 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          ruby-version: '3.3'
+          python-version: '3.11'
 
-      - name: Clone DevDocs and Setup Dependencies
+      - name: Download and Extract Android & Kotlin Docsets
         run: |
-          git clone --depth 1 https://github.com/freeCodeCamp/devdocs.git devdocs
-          cd devdocs
-          
-          # Remove Ruby and Bundler version locks
-          sed -i '/^ruby /d' Gemfile
-          sed -i '/BUNDLED WITH/,$d' Gemfile.lock || true
-          
-          gem install bundler
-          bundle install
+          mkdir -p build-docs
+          cd build-docs
 
-      - name: Download Android & Kotlin Documentation Sets
-        working-directory: devdocs
-        env:
-          RACK_ENV: production
+          # 1. Download official Android & Kotlin docset archives
+          echo "Downloading Android Docset..."
+          curl -L -o Android.tgz "https://sanfrancisco.kapeli.com/feeds/Android.tgz"
+          tar -xzf Android.tgz
+
+          echo "Downloading Kotlin Docset..."
+          curl -L -o Kotlin.tgz "https://sanfrancisco.kapeli.com/feeds/Kotlin.tgz"
+          tar -xzf Kotlin.tgz
+
+      - name: Build Search Index and Web Dashboard
         run: |
-          # Download Android platform API, AndroidX, and Kotlin doc packages
-          bundle exec thor docs:download android
-          bundle exec thor docs:download kotlin
-
-      - name: Compile and Export Full Static Offline Site
-        working-directory: devdocs
-        env:
-          RACK_ENV: production
-        run: |
-          # 1. Compile production assets (generates fingerprinted CSS/JS in public/assets)
-          bundle exec thor assets:compile
-
-          # 2. Start rackup in PRODUCTION mode
-          bundle exec rackup -E production -o 127.0.0.1 -p 9292 &
-          SERVER_PID=$!
-
-          # 3. Wait for the server to become active
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:9292 > /dev/null; then
-              echo "Production server ready on port 9292"
-              break
-            fi
-            sleep 1
-          done
-
-          # 4. Prepare distribution directory
+          cd build-docs
           mkdir -p ../android-docs-offline
-          mkdir -p ../android-docs-offline/docs
-
-          # 5. Export production HTML shell and manifests
-          curl -s http://127.0.0.1:9292/ > ../android-docs-offline/index.html
-          curl -s http://127.0.0.1:9292/manifest.json > ../android-docs-offline/manifest.json 2>/dev/null || true
-          curl -s http://127.0.0.1:9292/docs/docs.json > ../android-docs-offline/docs/docs.json
-
-          # 6. Copy all compiled static assets (CSS, JS, fonts, icons)
-          cp -r public/* ../android-docs-offline/
           
-          # 7. Copy all downloaded documentation databases
-          cp -r assets/docs/* ../android-docs-offline/docs/ 2>/dev/null || true
+          # Move full static HTML documentation
+          cp -r Android.docset/Contents/Resources/Documents/* ../android-docs-offline/
+          mkdir -p ../android-docs-offline/kotlin
+          cp -r Kotlin.docset/Contents/Resources/Documents/* ../android-docs-offline/kotlin/
 
-          # Clean up background process
-          kill $SERVER_PID
+          # Export SQLite index into searchable JSON and build search UI
+          python3 - << 'EOF'
+          import sqlite3
+          import json
+          import os
 
-      - name: Compress Static Package
+          conn = sqlite3.connect('Android.docset/Contents/Resources/docSet.dsidx')
+          cursor = conn.cursor()
+
+          # Query all classes, interfaces, methods, and packages
+          cursor.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Component', 'Method')")
+          rows = cursor.fetchall()
+
+          index_data = [{"name": r[0], "type": r[1], "path": r[2]} for r in rows]
+
+          with open('../android-docs-offline/search-index.json', 'w') as f:
+              json.dump(index_data, f)
+
+          print(f"Indexed {len(index_data)} Android API symbols.")
+
+          # Generate modern responsive search shell
+          html_content = """<!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Android Offline Docs</title>
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #0f172a; color: #f8fafc; }
+              #sidebar { width: 340px; border-right: 1px solid #334155; display: flex; flex-direction: column; background: #1e293b; }
+              #search-box { padding: 12px; border-bottom: 1px solid #334155; }
+              #search { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 14px; outline: none; }
+              #search:focus { border-color: #3b82f6; }
+              #results { flex: 1; overflow-y: auto; list-style: none; }
+              .item { padding: 10px 14px; border-bottom: 1px solid #334155; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+              .item:hover { background: #334155; }
+              .name { font-size: 14px; font-weight: 500; color: #e2e8f0; }
+              .type { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #94a3b8; font-weight: 600; }
+              #main { flex: 1; display: flex; flex-direction: column; }
+              iframe { flex: 1; border: none; background: #ffffff; width: 100%; height: 100%; }
+              @media(max-width: 768px) {
+                body { flex-direction: column; }
+                #sidebar { width: 100%; height: 40vh; }
+                #main { height: 60vh; }
+              }
+            </style>
+          </head>
+          <body>
+            <div id="sidebar">
+              <div id="search-box">
+                <input type="text" id="search" placeholder="Search Android classes (e.g. Activity, View)..." autofocus>
+              </div>
+              <ul id="results"></ul>
+            </div>
+            <div id="main">
+              <iframe id="viewer" src="reference/packages.html"></iframe>
+            </div>
+
+            <script>
+              let data = [];
+              const searchInput = document.getElementById('search');
+              const resultsList = document.getElementById('results');
+              const viewer = document.getElementById('viewer');
+
+              fetch('search-index.json')
+                .then(r => r.json())
+                .then(json => {
+                  data = json;
+                  render(data.slice(0, 100));
+                });
+
+              function render(items) {
+                resultsList.innerHTML = items.map(it => `
+                  <li class="item" onclick="loadDoc('${it.path}')">
+                    <span class="name">${it.name}</span>
+                    <span class="type">${it.type}</span>
+                  </li>
+                `).join('');
+              }
+
+              searchInput.addEventListener('input', (e) => {
+                const q = e.target.value.toLowerCase().trim();
+                if (!q) return render(data.slice(0, 100));
+                const filtered = data.filter(d => d.name.toLowerCase().includes(q)).slice(0, 80);
+                render(filtered);
+              });
+
+              function loadDoc(path) {
+                viewer.src = path;
+              }
+            </script>
+          </body>
+          </html>"""
+
+          with open('../android-docs-offline/index.html', 'w') as f:
+              f.write(html_content)
+          EOF
+
+      - name: Compress Static Output
         run: |
           tar -czf android-docs-offline.tar.gz -C android-docs-offline .
 
