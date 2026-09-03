@@ -11,43 +11,50 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.3'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Clone DevDocs Engine
+      - name: Clone DevDocs and Fix Version Constraints
         run: |
           git clone --depth 1 https://github.com/freeCodeCamp/devdocs.git devdocs
           cd devdocs
+          
+          # Remove strict Ruby version check and Bundler version locks
+          sed -i '/^ruby /d' Gemfile
+          sed -i '/BUNDLED WITH/,$d' Gemfile.lock || true
+          
+          # Install gems and npm packages
+          gem install bundler
           bundle install
           npm install
 
-      - name: Download Full Android & Kotlin Documentation Sets
+      - name: Download Android & Kotlin Docsets
         working-directory: devdocs
         run: |
-          # Download Android (platform APIs, SDK classes, AndroidX/Jetpack) and Kotlin docs
+          # Downloads full platform classes, AndroidX/Jetpack APIs, and Kotlin reference
           bundle exec thor docs:download android
           bundle exec thor docs:download kotlin
 
-      - name: Package Docs for Static Offline Hosting
+      - name: Compile and Package Static Files
         working-directory: devdocs
         run: |
-          # Compile the static frontend assets with pre-baked offline indices
+          # 1. Compile web assets into static bundle
           bundle exec thor assets:compile
           
-          # Create standalone offline distribution directory
+          # 2. Assemble the standalone offline distribution directory
           mkdir -p ../android-docs-offline
           cp -r public/* ../android-docs-offline/
           
-          # Copy unpacked docsets directly into offline assets directory
+          # 3. Copy downloaded docsets and database into the static bundle
           mkdir -p ../android-docs-offline/docs
-          cp -r assets/docs/android* ../android-docs-offline/docs/ || true
-          cp -r assets/docs/kotlin* ../android-docs-offline/docs/ || true
+          cp -r assets/docs/android* ../android-docs-offline/docs/ 2>/dev/null || true
+          cp -r assets/docs/kotlin* ../android-docs-offline/docs/ 2>/dev/null || true
 
-      - name: Compress Static Output
+      - name: Compress Archive
         run: |
           tar -czf android-docs-offline.tar.gz -C android-docs-offline .
 
