@@ -1,88 +1,60 @@
-name: Build and Package Expo Docs
+name: Build and Package Android Docs Offline
 
 on:
   workflow_dispatch:
-    inputs:
-      sdk_version:
-        description: 'Branch or tag to clone from expo/expo'
-        required: true
-        default: 'main'
-        type: string
 
 jobs:
   build-docs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout target repository
-        uses: actions/checkout@v4
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
         with:
-          repository: 'expo/expo'
-          ref: ${{ inputs.sdk_version }}
-          sparse-checkout: |
-            docs
-            packages/@expo/sdk-compatibility
-          sparse-checkout-cone-mode: false
+          ruby-version: '3.2'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Build Monorepo Dependencies
+      - name: Clone DevDocs Engine
         run: |
-          # Build @expo/sdk-compatibility if present in the repo
-          if [ -d "packages/@expo/sdk-compatibility" ]; then
-            cd packages/@expo/sdk-compatibility
-            pnpm install --ignore-scripts || true
-            pnpm build || npm run build || npx tsc || true
-            cd ../..
-          fi
+          git clone --depth 1 https://github.com/freeCodeCamp/devdocs.git devdocs
+          cd devdocs
+          bundle install
+          npm install
 
-      - name: Install Docs Dependencies
-        working-directory: docs
+      - name: Download Full Android & Kotlin Documentation Sets
+        working-directory: devdocs
         run: |
-          pnpm install --frozen-lockfile=false --ignore-scripts
+          # Download Android (platform APIs, SDK classes, AndroidX/Jetpack) and Kotlin docs
+          bundle exec thor docs:download android
+          bundle exec thor docs:download kotlin
 
-          # Link the built @expo/sdk-compatibility package into docs node_modules
-          if [ -d "../packages/@expo/sdk-compatibility" ]; then
-            mkdir -p node_modules/@expo
-            rm -rf node_modules/@expo/sdk-compatibility
-            cp -r ../packages/@expo/sdk-compatibility node_modules/@expo/sdk-compatibility
-          fi
-
-      - name: Patch and Export Static Docs
-        working-directory: docs
-        env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
-          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Package Docs for Static Offline Hosting
+        working-directory: devdocs
         run: |
-          # 1. Force Next.js internal defaults to ignore TypeScript & ESLint errors
-          find node_modules/next -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.mjs" \) -exec sed -i 's/ignoreBuildErrors: false/ignoreBuildErrors: true/g' {} + 2>/dev/null || true
-          find node_modules/next -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.mjs" \) -exec sed -i 's/ignoreDuringBuilds: false/ignoreDuringBuilds: true/g' {} + 2>/dev/null || true
-
-          # 2. Patch next.config.js directly
-          if [ -f "next.config.js" ]; then
-            sed -i 's/const nextConfig = {/const nextConfig = {\n  typescript: { ignoreBuildErrors: true },\n  eslint: { ignoreDuringBuilds: true },/g' next.config.js
-          fi
-
-          # 3. Export static HTML documentation
-          pnpm export
+          # Compile the static frontend assets with pre-baked offline indices
+          bundle exec thor assets:compile
+          
+          # Create standalone offline distribution directory
+          mkdir -p ../android-docs-offline
+          cp -r public/* ../android-docs-offline/
+          
+          # Copy unpacked docsets directly into offline assets directory
+          mkdir -p ../android-docs-offline/docs
+          cp -r assets/docs/android* ../android-docs-offline/docs/ || true
+          cp -r assets/docs/kotlin* ../android-docs-offline/docs/ || true
 
       - name: Compress Static Output
-        working-directory: docs
         run: |
-          tar -czf expo-docs-offline.tar.gz -C out .
+          tar -czf android-docs-offline.tar.gz -C android-docs-offline .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: expo-docs-offline
-          path: docs/expo-docs-offline.tar.gz
+          name: android-docs-offline
+          path: android-docs-offline.tar.gz
           retention-days: 7
           
