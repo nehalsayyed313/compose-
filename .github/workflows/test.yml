@@ -20,78 +20,97 @@ jobs:
           cd build-docs
 
           python3 - << 'EOF'
-          import urllib.request
-          import xml.etree.ElementTree as ET
           import subprocess
           import sqlite3
           import json
           import os
+          import re
           import shutil
 
-          def fetch_docset(name):
-              feed_url = f"https://sanfrancisco.kapeli.com/feeds/{name}.xml"
-              print(f"Fetching feed: {feed_url}")
-              
-              req = urllib.request.Request(feed_url, headers={'User-Agent': 'Mozilla/5.0'})
-              with urllib.request.urlopen(req) as resp:
-                  xml_data = resp.read()
+          MIRROR_REGIONS = ["sanfrancisco", "frankfurt", "tokyo", "london", "newyork"]
 
-              root = ET.fromstring(xml_data)
-              urls = [u.text.strip() for u in root.iter('url') if u.text]
+          def download_docset(name):
+              archive_name = f"{name}.tgz"
+              print(f"--- Fetching {name} Docset ---")
               
-              if not urls:
-                  urls = [f"http://sanfrancisco.kapeli.com/feeds/zzz/{name.lower()}/{name}.tgz"]
+              # 1. Try resolving mirrors from official feed
+              feed_url = f"https://kapeli.com/feeds/{name}.xml"
+              urls = []
+              
+              feed_cmd = subprocess.run(
+                  ["curl", "-sL", "-A", "Mozilla/5.0", feed_url],
+                  capture_output=True,
+                  text=True
+              )
+              
+              if feed_cmd.returncode == 0 and "<url>" in feed_cmd.stdout:
+                  extracted_urls = re.findall(r'<url>(https?://[^<]+)</url>', feed_cmd.stdout)
+                  urls.extend(extracted_urls)
 
-              downloaded = False
+              # 2. Add fallback mirror URLs in case the feed is unavailable
+              for region in MIRROR_REGIONS:
+                  urls.append(f"http://{region}.kapeli.com/feeds/zzz/{name.lower()}/{name}.tgz")
+                  urls.append(f"http://{region}.kapeli.com/feeds/{name}.tgz")
+
+              # 3. Iterate through mirrors until full archive is downloaded
+              success = False
               for url in urls:
-                  # Force direct HTTP mirror if Kapeli returns https redirect issues
-                  print(f"Downloading {name} from {url}...")
-                  res = subprocess.run(["curl", "-f", "-L", "-o", f"{name}.tgz", url])
-                  if res.returncode == 0 and os.path.getsize(f"{name}.tgz") > 1000000:
-                      print(f"Extracting {name}.tgz ({os.path.getsize(f'{name}.tgz') // 1024 // 1024} MB)...")
-                      subprocess.run(["tar", "-xzf", f"{name}.tgz"], check=True)
-                      downloaded = True
+                  print(f"Trying mirror: {url}")
+                  res = subprocess.run([
+                      "curl", "-f", "-L", "-A", "Mozilla/5.0",
+                      "--connect-timeout", "10",
+                      "--max-time", "180",
+                      "-o", archive_name,
+                      url
+                  ])
+                  
+                  if res.returncode == 0 and os.path.exists(archive_name) and os.path.getsize(archive_name) > 1000000:
+                      size_mb = os.path.getsize(archive_name) // (1024 * 1024)
+                      print(f"Successfully downloaded {name} ({size_mb} MB). Extracting...")
+                      subprocess.run(["tar", "-xzf", archive_name], check=True)
+                      success = True
                       break
                   else:
-                      print(f"Mirror failed or file too small, trying next mirror...")
+                      print("Mirror failed or file incomplete, trying next candidate...")
 
-              if not downloaded:
-                  raise RuntimeError(f"Failed to download docset for {name}")
+              if not success:
+                  raise RuntimeError(f"Could not download docset for {name} from any available mirror.")
 
-          # 1. Download Android and Kotlin Docsets
-          fetch_docset("Android")
-          fetch_docset("Kotlin")
+          # Download and unpack
+          download_docset("Android")
+          download_docset("Kotlin")
 
-          # 2. Copy static HTML assets
-          print("Copying documentation files...")
+          # Copy static files to distribution folder
+          print("Arranging static files...")
           out_dir = "../android-docs-offline"
-          
-          # Android HTML assets
-          android_docs = "Android.docset/Contents/Resources/Documents"
-          for item in os.listdir(android_docs):
-              s = os.path.join(android_docs, item)
-              d = os.path.join(out_dir, item)
-              if os.path.isdir(s):
-                  shutil.copytree(s, d, dirs_exist_ok=True)
-              else:
-                  shutil.copy2(s, d)
 
-          # Kotlin HTML assets
+          # 1. Android docs
+          android_docs_path = "Android.docset/Contents/Resources/Documents"
+          for item in os.listdir(android_docs_path):
+              src = os.path.join(android_docs_path, item)
+              dst = os.path.join(out_dir, item)
+              if os.path.isdir(src):
+                  shutil.copytree(src, dst, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(src, dst)
+
+          # 2. Kotlin docs
           kotlin_out = os.path.join(out_dir, "kotlin")
           os.makedirs(kotlin_out, exist_ok=True)
-          kotlin_docs = "Kotlin.docset/Contents/Resources/Documents"
-          for item in os.listdir(kotlin_docs):
-              s = os.path.join(kotlin_docs, item)
-              d = os.path.join(kotlin_out, item)
-              if os.path.isdir(s):
-                  shutil.copytree(s, d, dirs_exist_ok=True)
+          kotlin_docs_path = "Kotlin.docset/Contents/Resources/Documents"
+          for item in os.listdir(kotlin_docs_path):
+              src = os.path.join(kotlin_docs_path, item)
+              dst = os.path.join(kotlin_out, item)
+              if os.path.isdir(src):
+                  shutil.copytree(src, dst, dirs_exist_ok=True)
               else:
-                  shutil.copy2(s, d)
+                  shutil.copy2(src, dst)
 
-          # 3. Build Unified Search Index from SQLite databases
+          # 3. Build SQLite Search Index
+          print("Building unified offline search index...")
           all_indices = []
 
-          # Index Android symbols
+          # Android classes and APIs
           android_db = 'Android.docset/Contents/Resources/docSet.dsidx'
           if os.path.exists(android_db):
               conn = sqlite3.connect(android_db)
@@ -101,7 +120,7 @@ jobs:
                   all_indices.append({"name": row[0], "type": f"Android {row[1]}", "path": row[2]})
               conn.close()
 
-          # Index Kotlin symbols
+          # Kotlin language symbols
           kotlin_db = 'Kotlin.docset/Contents/Resources/docSet.dsidx'
           if os.path.exists(kotlin_db):
               conn = sqlite3.connect(kotlin_db)
@@ -114,7 +133,7 @@ jobs:
           with open(os.path.join(out_dir, 'search-index.json'), 'w') as f:
               json.dump(all_indices, f)
 
-          print(f"Successfully generated offline index with {len(all_indices)} symbols.")
+          print(f"Indexed {len(all_indices):,} total Android & Kotlin symbols.")
 
           # 4. Generate Responsive Offline Web UI
           html_template = """<!DOCTYPE html>
@@ -148,7 +167,7 @@ jobs:
           <body>
             <div id="sidebar">
               <div id="search-box">
-                <input type="text" id="search" placeholder="Search (e.g., Activity, Coroutine, View)..." autofocus>
+                <input type="text" id="search" placeholder="Search (e.g., Activity, Notification, View)..." autofocus>
                 <div id="count">Loading offline symbols...</div>
               </div>
               <ul id="results"></ul>
@@ -171,7 +190,7 @@ jobs:
                   countEl.innerText = `${data.length.toLocaleString()} symbols ready offline`;
                   render(data.slice(0, 80));
                 })
-                .catch(err => {
+                .catch(() => {
                   countEl.innerText = 'Error loading index';
                 });
 
