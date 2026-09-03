@@ -1,245 +1,152 @@
-name: Build and Package Android Docs Offline
+name: Download Complete Android & Jetpack Docs
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-docs:
+  download-and-bundle:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Download, Extract, and Index Android & Kotlin Docs
+      - name: Download and Organize Official Google Documentation
         run: |
-          mkdir -p build-docs
-          mkdir -p android-docs-offline
-          cd build-docs
+          mkdir -p bundle/platform
+          mkdir -p bundle/androidx
 
-          python3 - << 'EOF'
-          import subprocess
-          import sqlite3
-          import json
-          import os
-          import shutil
-          import urllib.request
+          echo "=== 1. Downloading Core Android Platform Docs (dl.google.com) ==="
+          curl -L -o platform-docs.zip "https://dl.google.com/android/repository/docs-28_r01.zip"
+          unzip -q platform-docs.zip
+          mv docs/* bundle/platform/
+          rm -rf docs platform-docs.zip
 
-          REGIONS = ["sanfrancisco", "frankfurt", "tokyo", "london", "newyork"]
+          echo "=== 2. Downloading AndroidX & Jetpack Compose Javadocs (Google Maven) ==="
+          BASE_MAVEN="https://dl.google.com/android/maven2/androidx"
 
-          def download_docset(name):
-              archive = f"{name}.tgz"
-              print(f"\n==========================================")
-              print(f"  Downloading {name} Documentation...")
-              print(f"==========================================")
+          declare -A PACKAGES=(
+            ["core"]="${BASE_MAVEN}/core/core/1.13.1/core-1.13.1-javadoc.jar"
+            ["activity"]="${BASE_MAVEN}/activity/activity/1.9.0/activity-1.9.0-javadoc.jar"
+            ["activity-compose"]="${BASE_MAVEN}/activity/activity-compose/1.9.0/activity-compose-1.9.0-javadoc.jar"
+            ["lifecycle-runtime"]="${BASE_MAVEN}/lifecycle/lifecycle-runtime/2.8.0/lifecycle-runtime-2.8.0-javadoc.jar"
+            ["lifecycle-viewmodel-compose"]="${BASE_MAVEN}/lifecycle/lifecycle-viewmodel-compose/2.8.0/lifecycle-viewmodel-compose-2.8.0-javadoc.jar"
+            ["compose-ui"]="${BASE_MAVEN}/compose/ui/ui/1.6.7/ui-1.6.7-javadoc.jar"
+            ["compose-foundation"]="${BASE_MAVEN}/compose/foundation/foundation/1.6.7/foundation-1.6.7-javadoc.jar"
+            ["compose-material3"]="${BASE_MAVEN}/compose/material3/material3/1.2.1/material3-1.2.1-javadoc.jar"
+            ["compose-runtime"]="${BASE_MAVEN}/compose/runtime/runtime/1.6.7/runtime-1.6.7-javadoc.jar"
+            ["navigation-compose"]="${BASE_MAVEN}/navigation/navigation-compose/2.7.7/navigation-compose-2.7.7-javadoc.jar"
+            ["room-runtime"]="${BASE_MAVEN}/room/room-runtime/2.6.1/room-runtime-2.6.1-javadoc.jar"
+            ["work-runtime"]="${BASE_MAVEN}/work/work-runtime/2.9.0/work-runtime-2.9.0-javadoc.jar"
+          )
 
-              urls = []
-              
-              # 1. Fetch live mirror list from Zeal API
-              try:
-                  req = urllib.request.Request("https://api.zealdocs.org/v1/docsets", headers={'User-Agent': 'Mozilla/5.0'})
-                  with urllib.request.urlopen(req, timeout=10) as resp:
-                      data = json.loads(resp.read().decode())
-                      for item in data:
-                          if item.get("name", "").lower() == name.lower():
-                              if "versions" in item and item["versions"]:
-                                  # Add latest version URLs
-                                  v = item["versions"][0]
-                                  if "url" in v: urls.append(v["url"])
-                              if "source" in item and "url" in item["source"]:
-                                  urls.append(item["source"]["url"])
-              except Exception as e:
-                  print(f"Zeal API query failed ({e}), using direct CDN fallbacks...")
+          for name in "${!PACKAGES[@]}"; do
+            echo "Fetching $name..."
+            mkdir -p "bundle/androidx/$name"
+            curl -sL "${PACKAGES[$name]}" -o temp.jar
+            unzip -q temp.jar -d "bundle/androidx/$name"
+            rm temp.jar
+          done
 
-              # 2. Add verified direct Kapeli CDN mirror URLs (with /official/ path)
-              for r in REGIONS:
-                  urls.append(f"http://{r}.kapeli.com/feeds/zzz/official/{name}/{name}.tgz")
-                  urls.append(f"https://{r}.kapeli.com/feeds/zzz/official/{name}/{name}.tgz")
-
-              # 3. Download from first working mirror
-              downloaded = False
-              for url in urls:
-                  print(f"Attempting: {url}")
-                  res = subprocess.run([
-                      "curl", "-f", "-L", "-A", "Mozilla/5.0",
-                      "--connect-timeout", "15",
-                      "--retry", "2",
-                      "-o", archive,
-                      url
-                  ])
-
-                  if res.returncode == 0 and os.path.exists(archive) and os.path.getsize(archive) > 5000000:
-                      mb = os.path.getsize(archive) // (1024 * 1024)
-                      print(f"-> SUCCESS: Downloaded {name} ({mb} MB). Extracting...")
-                      subprocess.run(["tar", "-xzf", archive], check=True)
-                      downloaded = True
-                      break
-                  else:
-                      print("-> Failed, trying next mirror...")
-
-              if not downloaded:
-                  raise SystemExit(f"Fatal: Unable to download {name} from any mirror.")
-
-          # Download Android and Kotlin
-          download_docset("Android")
-          download_docset("Kotlin")
-
-          # Copy documentation files
-          print("\nOrganizing static documentation files...")
-          out_dir = "../android-docs-offline"
-
-          # 1. Android Documentation Files
-          android_doc_dir = "Android.docset/Contents/Resources/Documents"
-          for item in os.listdir(android_doc_dir):
-              s = os.path.join(android_doc_dir, item)
-              d = os.path.join(out_dir, item)
-              if os.path.isdir(s):
-                  shutil.copytree(s, d, dirs_exist_ok=True)
-              else:
-                  shutil.copy2(s, d)
-
-          # 2. Kotlin Documentation Files
-          kotlin_out = os.path.join(out_dir, "kotlin")
-          os.makedirs(kotlin_out, exist_ok=True)
-          kotlin_doc_dir = "Kotlin.docset/Contents/Resources/Documents"
-          for item in os.listdir(kotlin_doc_dir):
-              s = os.path.join(kotlin_doc_dir, item)
-              d = os.path.join(kotlin_out, item)
-              if os.path.isdir(s):
-                  shutil.copytree(s, d, dirs_exist_ok=True)
-              else:
-                  shutil.copy2(s, d)
-
-          # 3. Build Unified Search Index from SQLite
-          print("Building unified search index from SQLite databases...")
-          search_entries = []
-
-          # Index Android classes, interfaces, packages, and methods
-          android_db = "Android.docset/Contents/Resources/docSet.dsidx"
-          if os.path.exists(android_db):
-              conn = sqlite3.connect(android_db)
-              cur = conn.cursor()
-              cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Method', 'Constructor', 'Component')")
-              for r in cur.fetchall():
-                  search_entries.append({"n": r[0], "t": f"Android {r[1]}", "p": r[2]})
-              conn.close()
-
-          # Index Kotlin functions, classes, and properties
-          kotlin_db = "Kotlin.docset/Contents/Resources/docSet.dsidx"
-          if os.path.exists(kotlin_db):
-              conn = sqlite3.connect(kotlin_db)
-              cur = conn.cursor()
-              cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Function', 'Property')")
-              for r in cur.fetchall():
-                  search_entries.append({"n": r[0], "t": f"Kotlin {r[1]}", "p": f"kotlin/{r[2]}"})
-              conn.close()
-
-          with open(os.path.join(out_dir, "search-index.json"), "w") as f:
-              json.dump(search_entries, f)
-
-          print(f"Indexed {len(search_entries):,} total API symbols.")
-
-          # 4. Generate Responsive Offline Web App UI
-          web_ui = """<!DOCTYPE html>
+          echo "=== 3. Creating Master Offline Dashboard ==="
+          cat << 'EOF' > bundle/index.html
+          <!DOCTYPE html>
           <html lang="en">
           <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-            <title>Android & Kotlin Offline Docs</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Android & Jetpack Offline Documentation</title>
             <style>
               * { box-sizing: border-box; margin: 0; padding: 0; }
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #0f172a; color: #f8fafc; overflow: hidden; }
-              #sidebar { width: 360px; border-right: 1px solid #334155; display: flex; flex-direction: column; background: #1e293b; height: 100%; }
-              #search-box { padding: 12px; border-bottom: 1px solid #334155; }
-              #search { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 14px; outline: none; }
-              #search:focus { border-color: #3b82f6; }
-              #count { font-size: 11px; color: #94a3b8; margin-top: 6px; padding-left: 2px; }
-              #results { flex: 1; overflow-y: auto; list-style: none; }
-              .item { padding: 10px 14px; border-bottom: 1px solid #334155; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-              .item:hover, .item:active { background: #334155; }
-              .name { font-size: 13px; font-weight: 600; color: #e2e8f0; word-break: break-word; }
-              .type { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #38bdf8; font-weight: 600; margin-left: 8px; white-space: nowrap; }
-              #main { flex: 1; display: flex; flex-direction: column; background: #ffffff; }
-              iframe { flex: 1; border: none; width: 100%; height: 100%; }
-              @media (max-width: 768px) {
-                body { flex-direction: column; }
-                #sidebar { width: 100%; height: 40vh; }
-                #main { height: 60vh; }
-              }
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; }
+              .container { max-width: 900px; margin: 0 auto; }
+              h1 { font-size: 26px; font-weight: 800; margin-bottom: 8px; color: #38bdf8; }
+              p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+              .section-title { font-size: 18px; font-weight: 700; margin: 24px 0 12px; color: #e2e8f0; border-bottom: 1px solid #334155; padding-bottom: 6px; }
+              .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+              .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; text-decoration: none; color: inherit; transition: border-color 0.2s; display: block; }
+              .card:hover { border-color: #38bdf8; }
+              .card-title { font-weight: 600; font-size: 15px; color: #f1f5f9; margin-bottom: 4px; }
+              .card-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+              .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #0284c7; color: #fff; margin-bottom: 6px; }
+              .tag-core { background: #16a34a; }
             </style>
           </head>
           <body>
-            <div id="sidebar">
-              <div id="search-box">
-                <input type="text" id="search" placeholder="Search (Activity, View, Coroutine)..." autofocus>
-                <div id="count">Loading offline symbols...</div>
+            <div class="container">
+              <h1>Android & Jetpack Offline Docs</h1>
+              <p>Official offline documentation hosted locally in Termux.</p>
+
+              <div class="section-title">Core Android OS</div>
+              <div class="grid">
+                <a class="card" href="platform/reference/packages.html">
+                  <span class="tag tag-core">Platform SDK</span>
+                  <div class="card-title">Core Android Reference</div>
+                  <div class="card-desc">All android.* system packages, Views, Widgets, Services, Permissions, and Hardware APIs.</div>
+                </a>
               </div>
-              <ul id="results"></ul>
+
+              <div class="section-title">Jetpack Compose</div>
+              <div class="grid">
+                <a class="card" href="androidx/compose-ui/index.html">
+                  <span class="tag">Compose</span>
+                  <div class="card-title">Compose UI</div>
+                  <div class="card-desc">Layout primitives, Modifiers, Text, Graphics, and Gestures.</div>
+                </a>
+                <a class="card" href="androidx/compose-foundation/index.html">
+                  <span class="tag">Compose</span>
+                  <div class="card-title">Compose Foundation</div>
+                  <div class="card-desc">LazyColumn, LazyRow, Scrollables, and Shape foundations.</div>
+                </a>
+                <a class="card" href="androidx/compose-material3/index.html">
+                  <span class="tag">Compose</span>
+                  <div class="card-title">Material 3</div>
+                  <div class="card-desc">Buttons, Cards, Dialogs, TopAppBar, and Color Schemes.</div>
+                </a>
+                <a class="card" href="androidx/activity-compose/index.html">
+                  <span class="tag">Compose</span>
+                  <div class="card-title">Activity Compose</div>
+                  <div class="card-desc">ComponentActivity, setContent, BackHandler, and State flows.</div>
+                </a>
+                <a class="card" href="androidx/navigation-compose/index.html">
+                  <span class="tag">Compose</span>
+                  <div class="card-title">Navigation Compose</div>
+                  <div class="card-desc">NavHost, NavController, and Compose destinations.</div>
+                </a>
+              </div>
+
+              <div class="section-title">AndroidX Libraries</div>
+              <div class="grid">
+                <a class="card" href="androidx/core/index.html">
+                  <span class="tag">AndroidX</span>
+                  <div class="card-title">AndroidX Core</div>
+                  <div class="card-desc">CoreCompat, NotificationCompat, and ContextCompat.</div>
+                </a>
+                <a class="card" href="androidx/lifecycle-runtime/index.html">
+                  <span class="tag">AndroidX</span>
+                  <div class="card-title">Lifecycle</div>
+                  <div class="card-desc">LifecycleOwner, ViewModel, and LiveData/StateFlow.</div>
+                </a>
+                <a class="card" href="androidx/room-runtime/index.html">
+                  <span class="tag">AndroidX</span>
+                  <div class="card-title">Room Database</div>
+                  <div class="card-desc">RoomDatabase, DAOs, Entities, and SQLite ORM.</div>
+                </a>
+                <a class="card" href="androidx/work-runtime/index.html">
+                  <span class="tag">AndroidX</span>
+                  <div class="card-title">WorkManager</div>
+                  <div class="card-desc">CoroutineWorker, PeriodicWorkRequest, and Background Jobs.</div>
+                </a>
+              </div>
             </div>
-            <div id="main">
-              <iframe id="viewer" src="reference/packages.html"></iframe>
-            </div>
-
-            <script>
-              let data = [];
-              const searchInput = document.getElementById('search');
-              const resultsList = document.getElementById('results');
-              const countEl = document.getElementById('count');
-              const viewer = document.getElementById('viewer');
-
-              fetch('search-index.json')
-                .then(r => r.json())
-                .then(json => {
-                  data = json;
-                  countEl.innerText = `${data.length.toLocaleString()} symbols ready offline`;
-                  render(data.slice(0, 100));
-                })
-                .catch(() => {
-                  countEl.innerText = 'Failed loading search index';
-                });
-
-              function render(items) {
-                resultsList.innerHTML = items.map(it => `
-                  <li class="item" onclick="loadDoc('${it.p}')">
-                    <span class="name">${it.n}</span>
-                    <span class="type">${it.t}</span>
-                  </li>
-                `).join('');
-              }
-
-              let debounceTimer;
-              searchInput.addEventListener('input', (e) => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => {
-                  const q = e.target.value.toLowerCase().trim();
-                  if (!q) return render(data.slice(0, 100));
-                  const matches = data.filter(d => d.n.toLowerCase().includes(q)).slice(0, 100);
-                  render(matches);
-                  countEl.innerText = `${matches.length} matches found`;
-                }, 60);
-              });
-
-              function loadDoc(path) {
-                viewer.src = path;
-              }
-            </script>
           </body>
-          </html>"""
-
-          with open(os.path.join(out_dir, "index.html"), "w") as f:
-              f.write(web_ui)
+          </html>
           EOF
 
-      - name: Compress Static Output
-        run: |
-          tar -czf android-docs-offline.tar.gz -C android-docs-offline .
+          echo "=== 4. Packaging Archive ==="
+          tar -czf android-full-offline-docs.tar.gz -C bundle .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-docs-offline
-          path: android-docs-offline.tar.gz
+          name: android-full-offline-docs
+          path: android-full-offline-docs.tar.gz
           retention-days: 7
           
