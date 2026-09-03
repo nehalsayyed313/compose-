@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download, Extract, and Index Docsets
+      - name: Download, Extract, and Index Android & Kotlin Docs
         run: |
           mkdir -p build-docs
           mkdir -p android-docs-offline
@@ -24,119 +24,125 @@ jobs:
           import sqlite3
           import json
           import os
-          import re
           import shutil
+          import urllib.request
 
-          MIRROR_REGIONS = ["sanfrancisco", "frankfurt", "tokyo", "london", "newyork"]
+          REGIONS = ["sanfrancisco", "frankfurt", "tokyo", "london", "newyork"]
 
           def download_docset(name):
-              archive_name = f"{name}.tgz"
-              print(f"--- Fetching {name} Docset ---")
-              
-              # 1. Try resolving mirrors from official feed
-              feed_url = f"https://kapeli.com/feeds/{name}.xml"
+              archive = f"{name}.tgz"
+              print(f"\n==========================================")
+              print(f"  Downloading {name} Documentation...")
+              print(f"==========================================")
+
               urls = []
               
-              feed_cmd = subprocess.run(
-                  ["curl", "-sL", "-A", "Mozilla/5.0", feed_url],
-                  capture_output=True,
-                  text=True
-              )
-              
-              if feed_cmd.returncode == 0 and "<url>" in feed_cmd.stdout:
-                  extracted_urls = re.findall(r'<url>(https?://[^<]+)</url>', feed_cmd.stdout)
-                  urls.extend(extracted_urls)
+              # 1. Fetch live mirror list from Zeal API
+              try:
+                  req = urllib.request.Request("https://api.zealdocs.org/v1/docsets", headers={'User-Agent': 'Mozilla/5.0'})
+                  with urllib.request.urlopen(req, timeout=10) as resp:
+                      data = json.loads(resp.read().decode())
+                      for item in data:
+                          if item.get("name", "").lower() == name.lower():
+                              if "versions" in item and item["versions"]:
+                                  # Add latest version URLs
+                                  v = item["versions"][0]
+                                  if "url" in v: urls.append(v["url"])
+                              if "source" in item and "url" in item["source"]:
+                                  urls.append(item["source"]["url"])
+              except Exception as e:
+                  print(f"Zeal API query failed ({e}), using direct CDN fallbacks...")
 
-              # 2. Add fallback mirror URLs in case the feed is unavailable
-              for region in MIRROR_REGIONS:
-                  urls.append(f"http://{region}.kapeli.com/feeds/zzz/{name.lower()}/{name}.tgz")
-                  urls.append(f"http://{region}.kapeli.com/feeds/{name}.tgz")
+              # 2. Add verified direct Kapeli CDN mirror URLs (with /official/ path)
+              for r in REGIONS:
+                  urls.append(f"http://{r}.kapeli.com/feeds/zzz/official/{name}/{name}.tgz")
+                  urls.append(f"https://{r}.kapeli.com/feeds/zzz/official/{name}/{name}.tgz")
 
-              # 3. Iterate through mirrors until full archive is downloaded
-              success = False
+              # 3. Download from first working mirror
+              downloaded = False
               for url in urls:
-                  print(f"Trying mirror: {url}")
+                  print(f"Attempting: {url}")
                   res = subprocess.run([
                       "curl", "-f", "-L", "-A", "Mozilla/5.0",
-                      "--connect-timeout", "10",
-                      "--max-time", "180",
-                      "-o", archive_name,
+                      "--connect-timeout", "15",
+                      "--retry", "2",
+                      "-o", archive,
                       url
                   ])
-                  
-                  if res.returncode == 0 and os.path.exists(archive_name) and os.path.getsize(archive_name) > 1000000:
-                      size_mb = os.path.getsize(archive_name) // (1024 * 1024)
-                      print(f"Successfully downloaded {name} ({size_mb} MB). Extracting...")
-                      subprocess.run(["tar", "-xzf", archive_name], check=True)
-                      success = True
+
+                  if res.returncode == 0 and os.path.exists(archive) and os.path.getsize(archive) > 5000000:
+                      mb = os.path.getsize(archive) // (1024 * 1024)
+                      print(f"-> SUCCESS: Downloaded {name} ({mb} MB). Extracting...")
+                      subprocess.run(["tar", "-xzf", archive], check=True)
+                      downloaded = True
                       break
                   else:
-                      print("Mirror failed or file incomplete, trying next candidate...")
+                      print("-> Failed, trying next mirror...")
 
-              if not success:
-                  raise RuntimeError(f"Could not download docset for {name} from any available mirror.")
+              if not downloaded:
+                  raise SystemExit(f"Fatal: Unable to download {name} from any mirror.")
 
-          # Download and unpack
+          # Download Android and Kotlin
           download_docset("Android")
           download_docset("Kotlin")
 
-          # Copy static files to distribution folder
-          print("Arranging static files...")
+          # Copy documentation files
+          print("\nOrganizing static documentation files...")
           out_dir = "../android-docs-offline"
 
-          # 1. Android docs
-          android_docs_path = "Android.docset/Contents/Resources/Documents"
-          for item in os.listdir(android_docs_path):
-              src = os.path.join(android_docs_path, item)
-              dst = os.path.join(out_dir, item)
-              if os.path.isdir(src):
-                  shutil.copytree(src, dst, dirs_exist_ok=True)
+          # 1. Android Documentation Files
+          android_doc_dir = "Android.docset/Contents/Resources/Documents"
+          for item in os.listdir(android_doc_dir):
+              s = os.path.join(android_doc_dir, item)
+              d = os.path.join(out_dir, item)
+              if os.path.isdir(s):
+                  shutil.copytree(s, d, dirs_exist_ok=True)
               else:
-                  shutil.copy2(src, dst)
+                  shutil.copy2(s, d)
 
-          # 2. Kotlin docs
+          # 2. Kotlin Documentation Files
           kotlin_out = os.path.join(out_dir, "kotlin")
           os.makedirs(kotlin_out, exist_ok=True)
-          kotlin_docs_path = "Kotlin.docset/Contents/Resources/Documents"
-          for item in os.listdir(kotlin_docs_path):
-              src = os.path.join(kotlin_docs_path, item)
-              dst = os.path.join(kotlin_out, item)
-              if os.path.isdir(src):
-                  shutil.copytree(src, dst, dirs_exist_ok=True)
+          kotlin_doc_dir = "Kotlin.docset/Contents/Resources/Documents"
+          for item in os.listdir(kotlin_doc_dir):
+              s = os.path.join(kotlin_doc_dir, item)
+              d = os.path.join(kotlin_out, item)
+              if os.path.isdir(s):
+                  shutil.copytree(s, d, dirs_exist_ok=True)
               else:
-                  shutil.copy2(src, dst)
+                  shutil.copy2(s, d)
 
-          # 3. Build SQLite Search Index
-          print("Building unified offline search index...")
-          all_indices = []
+          # 3. Build Unified Search Index from SQLite
+          print("Building unified search index from SQLite databases...")
+          search_entries = []
 
-          # Android classes and APIs
-          android_db = 'Android.docset/Contents/Resources/docSet.dsidx'
+          # Index Android classes, interfaces, packages, and methods
+          android_db = "Android.docset/Contents/Resources/docSet.dsidx"
           if os.path.exists(android_db):
               conn = sqlite3.connect(android_db)
               cur = conn.cursor()
-              cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Method', 'Constructor', 'Field')")
-              for row in cur.fetchall():
-                  all_indices.append({"name": row[0], "type": f"Android {row[1]}", "path": row[2]})
+              cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Method', 'Constructor', 'Component')")
+              for r in cur.fetchall():
+                  search_entries.append({"n": r[0], "t": f"Android {r[1]}", "p": r[2]})
               conn.close()
 
-          # Kotlin language symbols
-          kotlin_db = 'Kotlin.docset/Contents/Resources/docSet.dsidx'
+          # Index Kotlin functions, classes, and properties
+          kotlin_db = "Kotlin.docset/Contents/Resources/docSet.dsidx"
           if os.path.exists(kotlin_db):
               conn = sqlite3.connect(kotlin_db)
               cur = conn.cursor()
               cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Function', 'Property')")
-              for row in cur.fetchall():
-                  all_indices.append({"name": row[0], "type": f"Kotlin {row[1]}", "path": f"kotlin/{row[2]}"})
+              for r in cur.fetchall():
+                  search_entries.append({"n": r[0], "t": f"Kotlin {r[1]}", "p": f"kotlin/{r[2]}"})
               conn.close()
 
-          with open(os.path.join(out_dir, 'search-index.json'), 'w') as f:
-              json.dump(all_indices, f)
+          with open(os.path.join(out_dir, "search-index.json"), "w") as f:
+              json.dump(search_entries, f)
 
-          print(f"Indexed {len(all_indices):,} total Android & Kotlin symbols.")
+          print(f"Indexed {len(search_entries):,} total API symbols.")
 
-          # 4. Generate Responsive Offline Web UI
-          html_template = """<!DOCTYPE html>
+          # 4. Generate Responsive Offline Web App UI
+          web_ui = """<!DOCTYPE html>
           <html lang="en">
           <head>
             <meta charset="UTF-8">
@@ -159,15 +165,15 @@ jobs:
               iframe { flex: 1; border: none; width: 100%; height: 100%; }
               @media (max-width: 768px) {
                 body { flex-direction: column; }
-                #sidebar { width: 100%; height: 42vh; }
-                #main { height: 58vh; }
+                #sidebar { width: 100%; height: 40vh; }
+                #main { height: 60vh; }
               }
             </style>
           </head>
           <body>
             <div id="sidebar">
               <div id="search-box">
-                <input type="text" id="search" placeholder="Search (e.g., Activity, Notification, View)..." autofocus>
+                <input type="text" id="search" placeholder="Search (Activity, View, Coroutine)..." autofocus>
                 <div id="count">Loading offline symbols...</div>
               </div>
               <ul id="results"></ul>
@@ -188,31 +194,31 @@ jobs:
                 .then(json => {
                   data = json;
                   countEl.innerText = `${data.length.toLocaleString()} symbols ready offline`;
-                  render(data.slice(0, 80));
+                  render(data.slice(0, 100));
                 })
                 .catch(() => {
-                  countEl.innerText = 'Error loading index';
+                  countEl.innerText = 'Failed loading search index';
                 });
 
               function render(items) {
                 resultsList.innerHTML = items.map(it => `
-                  <li class="item" onclick="loadDoc('${it.path}')">
-                    <span class="name">${it.name}</span>
-                    <span class="type">${it.type}</span>
+                  <li class="item" onclick="loadDoc('${it.p}')">
+                    <span class="name">${it.n}</span>
+                    <span class="type">${it.t}</span>
                   </li>
                 `).join('');
               }
 
-              let timer;
+              let debounceTimer;
               searchInput.addEventListener('input', (e) => {
-                clearTimeout(timer);
-                timer = setTimeout(() => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
                   const q = e.target.value.toLowerCase().trim();
-                  if (!q) return render(data.slice(0, 80));
-                  const matches = data.filter(d => d.name.toLowerCase().includes(q)).slice(0, 100);
+                  if (!q) return render(data.slice(0, 100));
+                  const matches = data.filter(d => d.n.toLowerCase().includes(q)).slice(0, 100);
                   render(matches);
-                  countEl.innerText = `${matches.length} results`;
-                }, 80);
+                  countEl.innerText = `${matches.length} matches found`;
+                }, 60);
               });
 
               function loadDoc(path) {
@@ -222,8 +228,8 @@ jobs:
           </body>
           </html>"""
 
-          with open(os.path.join(out_dir, 'index.html'), 'w') as f:
-              f.write(html_template)
+          with open(os.path.join(out_dir, "index.html"), "w") as f:
+              f.write(web_ui)
           EOF
 
       - name: Compress Static Output
