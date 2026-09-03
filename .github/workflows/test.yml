@@ -13,82 +13,143 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download and Extract Android & Kotlin Docsets
+      - name: Download, Extract, and Index Docsets
         run: |
           mkdir -p build-docs
+          mkdir -p android-docs-offline
           cd build-docs
 
-          # 1. Download official Android & Kotlin docset archives
-          echo "Downloading Android Docset..."
-          curl -L -o Android.tgz "https://sanfrancisco.kapeli.com/feeds/Android.tgz"
-          tar -xzf Android.tgz
-
-          echo "Downloading Kotlin Docset..."
-          curl -L -o Kotlin.tgz "https://sanfrancisco.kapeli.com/feeds/Kotlin.tgz"
-          tar -xzf Kotlin.tgz
-
-      - name: Build Search Index and Web Dashboard
-        run: |
-          cd build-docs
-          mkdir -p ../android-docs-offline
-          
-          # Move full static HTML documentation
-          cp -r Android.docset/Contents/Resources/Documents/* ../android-docs-offline/
-          mkdir -p ../android-docs-offline/kotlin
-          cp -r Kotlin.docset/Contents/Resources/Documents/* ../android-docs-offline/kotlin/
-
-          # Export SQLite index into searchable JSON and build search UI
           python3 - << 'EOF'
+          import urllib.request
+          import xml.etree.ElementTree as ET
+          import subprocess
           import sqlite3
           import json
           import os
+          import shutil
 
-          conn = sqlite3.connect('Android.docset/Contents/Resources/docSet.dsidx')
-          cursor = conn.cursor()
+          def fetch_docset(name):
+              feed_url = f"https://sanfrancisco.kapeli.com/feeds/{name}.xml"
+              print(f"Fetching feed: {feed_url}")
+              
+              req = urllib.request.Request(feed_url, headers={'User-Agent': 'Mozilla/5.0'})
+              with urllib.request.urlopen(req) as resp:
+                  xml_data = resp.read()
 
-          # Query all classes, interfaces, methods, and packages
-          cursor.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Component', 'Method')")
-          rows = cursor.fetchall()
+              root = ET.fromstring(xml_data)
+              urls = [u.text.strip() for u in root.iter('url') if u.text]
+              
+              if not urls:
+                  urls = [f"http://sanfrancisco.kapeli.com/feeds/zzz/{name.lower()}/{name}.tgz"]
 
-          index_data = [{"name": r[0], "type": r[1], "path": r[2]} for r in rows]
+              downloaded = False
+              for url in urls:
+                  # Force direct HTTP mirror if Kapeli returns https redirect issues
+                  print(f"Downloading {name} from {url}...")
+                  res = subprocess.run(["curl", "-f", "-L", "-o", f"{name}.tgz", url])
+                  if res.returncode == 0 and os.path.getsize(f"{name}.tgz") > 1000000:
+                      print(f"Extracting {name}.tgz ({os.path.getsize(f'{name}.tgz') // 1024 // 1024} MB)...")
+                      subprocess.run(["tar", "-xzf", f"{name}.tgz"], check=True)
+                      downloaded = True
+                      break
+                  else:
+                      print(f"Mirror failed or file too small, trying next mirror...")
 
-          with open('../android-docs-offline/search-index.json', 'w') as f:
-              json.dump(index_data, f)
+              if not downloaded:
+                  raise RuntimeError(f"Failed to download docset for {name}")
 
-          print(f"Indexed {len(index_data)} Android API symbols.")
+          # 1. Download Android and Kotlin Docsets
+          fetch_docset("Android")
+          fetch_docset("Kotlin")
 
-          # Generate modern responsive search shell
-          html_content = """<!DOCTYPE html>
+          # 2. Copy static HTML assets
+          print("Copying documentation files...")
+          out_dir = "../android-docs-offline"
+          
+          # Android HTML assets
+          android_docs = "Android.docset/Contents/Resources/Documents"
+          for item in os.listdir(android_docs):
+              s = os.path.join(android_docs, item)
+              d = os.path.join(out_dir, item)
+              if os.path.isdir(s):
+                  shutil.copytree(s, d, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(s, d)
+
+          # Kotlin HTML assets
+          kotlin_out = os.path.join(out_dir, "kotlin")
+          os.makedirs(kotlin_out, exist_ok=True)
+          kotlin_docs = "Kotlin.docset/Contents/Resources/Documents"
+          for item in os.listdir(kotlin_docs):
+              s = os.path.join(kotlin_docs, item)
+              d = os.path.join(kotlin_out, item)
+              if os.path.isdir(s):
+                  shutil.copytree(s, d, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(s, d)
+
+          # 3. Build Unified Search Index from SQLite databases
+          all_indices = []
+
+          # Index Android symbols
+          android_db = 'Android.docset/Contents/Resources/docSet.dsidx'
+          if os.path.exists(android_db):
+              conn = sqlite3.connect(android_db)
+              cur = conn.cursor()
+              cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Method', 'Constructor', 'Field')")
+              for row in cur.fetchall():
+                  all_indices.append({"name": row[0], "type": f"Android {row[1]}", "path": row[2]})
+              conn.close()
+
+          # Index Kotlin symbols
+          kotlin_db = 'Kotlin.docset/Contents/Resources/docSet.dsidx'
+          if os.path.exists(kotlin_db):
+              conn = sqlite3.connect(kotlin_db)
+              cur = conn.cursor()
+              cur.execute("SELECT name, type, path FROM searchIndex WHERE type IN ('Class', 'Interface', 'Package', 'Function', 'Property')")
+              for row in cur.fetchall():
+                  all_indices.append({"name": row[0], "type": f"Kotlin {row[1]}", "path": f"kotlin/{row[2]}"})
+              conn.close()
+
+          with open(os.path.join(out_dir, 'search-index.json'), 'w') as f:
+              json.dump(all_indices, f)
+
+          print(f"Successfully generated offline index with {len(all_indices)} symbols.")
+
+          # 4. Generate Responsive Offline Web UI
+          html_template = """<!DOCTYPE html>
           <html lang="en">
           <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Android Offline Docs</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+            <title>Android & Kotlin Offline Docs</title>
             <style>
               * { box-sizing: border-box; margin: 0; padding: 0; }
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #0f172a; color: #f8fafc; }
-              #sidebar { width: 340px; border-right: 1px solid #334155; display: flex; flex-direction: column; background: #1e293b; }
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; background: #0f172a; color: #f8fafc; overflow: hidden; }
+              #sidebar { width: 360px; border-right: 1px solid #334155; display: flex; flex-direction: column; background: #1e293b; height: 100%; }
               #search-box { padding: 12px; border-bottom: 1px solid #334155; }
               #search { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 14px; outline: none; }
               #search:focus { border-color: #3b82f6; }
+              #count { font-size: 11px; color: #94a3b8; margin-top: 6px; padding-left: 2px; }
               #results { flex: 1; overflow-y: auto; list-style: none; }
               .item { padding: 10px 14px; border-bottom: 1px solid #334155; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-              .item:hover { background: #334155; }
-              .name { font-size: 14px; font-weight: 500; color: #e2e8f0; }
-              .type { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #94a3b8; font-weight: 600; }
-              #main { flex: 1; display: flex; flex-direction: column; }
-              iframe { flex: 1; border: none; background: #ffffff; width: 100%; height: 100%; }
-              @media(max-width: 768px) {
+              .item:hover, .item:active { background: #334155; }
+              .name { font-size: 13px; font-weight: 600; color: #e2e8f0; word-break: break-word; }
+              .type { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #0f172a; color: #38bdf8; font-weight: 600; margin-left: 8px; white-space: nowrap; }
+              #main { flex: 1; display: flex; flex-direction: column; background: #ffffff; }
+              iframe { flex: 1; border: none; width: 100%; height: 100%; }
+              @media (max-width: 768px) {
                 body { flex-direction: column; }
-                #sidebar { width: 100%; height: 40vh; }
-                #main { height: 60vh; }
+                #sidebar { width: 100%; height: 42vh; }
+                #main { height: 58vh; }
               }
             </style>
           </head>
           <body>
             <div id="sidebar">
               <div id="search-box">
-                <input type="text" id="search" placeholder="Search Android classes (e.g. Activity, View)..." autofocus>
+                <input type="text" id="search" placeholder="Search (e.g., Activity, Coroutine, View)..." autofocus>
+                <div id="count">Loading offline symbols...</div>
               </div>
               <ul id="results"></ul>
             </div>
@@ -100,13 +161,18 @@ jobs:
               let data = [];
               const searchInput = document.getElementById('search');
               const resultsList = document.getElementById('results');
+              const countEl = document.getElementById('count');
               const viewer = document.getElementById('viewer');
 
               fetch('search-index.json')
                 .then(r => r.json())
                 .then(json => {
                   data = json;
-                  render(data.slice(0, 100));
+                  countEl.innerText = `${data.length.toLocaleString()} symbols ready offline`;
+                  render(data.slice(0, 80));
+                })
+                .catch(err => {
+                  countEl.innerText = 'Error loading index';
                 });
 
               function render(items) {
@@ -118,11 +184,16 @@ jobs:
                 `).join('');
               }
 
+              let timer;
               searchInput.addEventListener('input', (e) => {
-                const q = e.target.value.toLowerCase().trim();
-                if (!q) return render(data.slice(0, 100));
-                const filtered = data.filter(d => d.name.toLowerCase().includes(q)).slice(0, 80);
-                render(filtered);
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                  const q = e.target.value.toLowerCase().trim();
+                  if (!q) return render(data.slice(0, 80));
+                  const matches = data.filter(d => d.name.toLowerCase().includes(q)).slice(0, 100);
+                  render(matches);
+                  countEl.innerText = `${matches.length} results`;
+                }, 80);
               });
 
               function loadDoc(path) {
@@ -132,8 +203,8 @@ jobs:
           </body>
           </html>"""
 
-          with open('../android-docs-offline/index.html', 'w') as f:
-              f.write(html_content)
+          with open(os.path.join(out_dir, 'index.html'), 'w') as f:
+              f.write(html_template)
           EOF
 
       - name: Compress Static Output
