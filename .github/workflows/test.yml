@@ -1,14 +1,59 @@
-name: Build
+name: Build and Package Expo Docs
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_version:
+        description: 'Branch or tag to clone from expo/expo'
+        required: true
+        default: 'main'
+        type: string
 
 jobs:
-  build:
+  build-docs:
     runs-on: ubuntu-latest
-    container: nixos/nix:latest
+
     steps:
-      - name: Build remote flake
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'expo/expo'
+          ref: ${{ inputs.sdk_version }}
+          sparse-checkout: |
+            docs
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Dependencies
+        working-directory: docs
         run: |
-          nix --extra-experimental-features "nix-command flakes" \
-            build "git+https://github.com/arthuraa/rocq-introduction.git" -L
-            
+          pnpm install --frozen-lockfile=false
+
+      - name: Export Static Docs
+        working-directory: docs
+        run: |
+          # Increase Node heap limit for Next.js static export
+          NODE_OPTIONS="--max-old-space-size=8192" pnpm export
+
+      - name: Compress Static Output
+        working-directory: docs
+        run: |
+          # Compress the out directory to tar.gz for Termux download
+          tar -czf expo-docs-offline.tar.gz -C out .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: expo-docs-offline
+          path: docs/expo-docs-offline.tar.gz
+          retention-days: 7
+          
