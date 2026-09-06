@@ -8,11 +8,16 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: coqorg/coq:8.11
+      options: --user root
     steps:
       - name: Build FCF
-        shell: bash -l {0}
         run: |
+          # 1. Load the pre-installed Coq opam environment
+          export OPAMROOT=/home/coq/.opam
+          eval $(opam env --root=/home/coq/.opam)
+
+          # 2. Clone and build
           git clone --depth 1 https://github.com/adampetcher/fcf.git
           cd fcf
-          opam exec -- make -j 4
+          make -j 4
           
