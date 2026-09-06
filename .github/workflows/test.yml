@@ -1,15 +1,18 @@
 name: Build
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
-  running:
-      runs-on: ubuntu-latest
-      container: rocq/rocq-prover:latest
-      steps:
-        - name: building
-          run: |
-             git clone --depth 1 https://github.com/adampetcher/fcf.git
-             cd fcf
-             make -j 4
-            
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: coqorg/coq:8.11
+    steps:
+      - name: Build FCF
+        shell: bash -l {0}
+        run: |
+          git clone --depth 1 https://github.com/adampetcher/fcf.git
+          cd fcf
+          opam exec -- make -j 4
+          
