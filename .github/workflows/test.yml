@@ -12,12 +12,7 @@ jobs:
     steps:
       - name: Build FCF
         run: |
-          # 1. Load the pre-installed Coq opam environment
-          export OPAMROOT=/home/coq/.opam
-          eval $(opam env --root=/home/coq/.opam)
-
-          # 2. Clone and build
-          git clone --depth 1 https://github.com/adampetcher/fcf.git
-          cd fcf
-          make -j 4
+          git clone --depth 1 https://github.com/chyyuu/os_kernel_lab.git
+          cd os_kernel_lab
+          make -j 1
           
