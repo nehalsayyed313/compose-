@@ -6,9 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: coqorg/coq:8.11
-      options: --user root
     steps:
       - name: Build FCF
         run: |
