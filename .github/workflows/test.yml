@@ -24,5 +24,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app
-          path: Android-Assembly-Native-Activity/app/build/outputs/apk
+          path: GroceriesApp-Compose/app/build/outputs/apk
     
