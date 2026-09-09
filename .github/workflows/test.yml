@@ -9,7 +9,5 @@ jobs:
     steps:
       - name: Build FCF
         run: |
-          git clone --depth 1 https://github.com/chyyuu/os_kernel_lab.git
-          cd os_kernel_lab
-          docker build -t mos .
+           sdkmanager --list
           
