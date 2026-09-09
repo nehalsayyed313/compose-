@@ -16,7 +16,7 @@ jobs:
           
       - name: Build
         run: |
-           git clone --depth 1 https://github.com/ferhatozcelik/jetpack-compose-template.git
-           cd jetpack-compose-template
+           git clone --depth 1 https://github.com/android-studio-templates/EmptyActivity.git
+           cd EmptyActivity
            chmod +x gradlew
            ./gradlew assembleDebug --no-daemon
