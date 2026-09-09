@@ -9,5 +9,5 @@ jobs:
     steps:
       - name: Build FCF
         run: |
-           sdkmanager --list
+           ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --list
           
