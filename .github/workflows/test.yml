@@ -16,9 +16,8 @@ jobs:
           
       - name: Build
         run: |
-           git clone --depth 1 https://github.com/471D38UNNUX/Android-Assembly-Native-Activity.git
-           cd Android-Assembly-Native-Activity
-           gradle wrapper
+           git clone --depth 1 https://github.com/willwillmade/Minimal-Android-Native-Activity-Sample.git
+           cd Minimal-Android-Native-Activity-Sample
            chmod +x gradlew
            ./gradlew assembleDebug --no-daemon
       - name: Upload Build Output
