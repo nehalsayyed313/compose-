@@ -11,7 +11,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
-          java-version: '17'      # Can be '8', '11', '17', '21', '25', etc.
+          java-version: '8'      # Can be '8', '11', '17', '21', '25', etc.
     
           
       - name: Build
