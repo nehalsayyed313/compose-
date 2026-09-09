@@ -18,6 +18,7 @@ jobs:
         run: |
            git clone --depth 1 https://github.com/471D38UNNUX/Android-Assembly-Native-Activity.git
            cd Android-Assembly-Native-Activity
+           gradle wrapper
            chmod +x gradlew
            ./gradlew assembleDebug --no-daemon
       - name: Upload Build Output
