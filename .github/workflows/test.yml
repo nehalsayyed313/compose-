@@ -7,7 +7,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
+          java-version: '17'      # Can be '8', '11', '17', '21', '25', etc.
+    
+          
       - name: Build FCF
         run: |
-           ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --list
-          
+           git clone -- depth 1 https://github.com/ferhatozcelik/jetpack-compose-template.git
+           cd jetpack-compose-template
+           chmod +x gradlew
+           ./gradlew assembleDebug --no-daemon
