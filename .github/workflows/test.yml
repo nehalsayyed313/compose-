@@ -16,13 +16,13 @@ jobs:
           
       - name: Build
         run: |
-           git clone --depth 1 https://github.com/android-studio-templates/EmptyActivity.git
-           cd EmptyActivity
+           git clone --depth 1 https://github.com/471D38UNNUX/Android-Assembly-Native-Activity.git
+           cd Android-Assembly-Native-Activity
            chmod +x gradlew
            ./gradlew assembleDebug --no-daemon
       - name: Upload Build Output
         uses: actions/upload-artifact@v4
         with:
           name: app
-          path: EmptyActivity/app/build
+          path: Android-Assembly-Native-Activity/app/build/outputs/apk
     
