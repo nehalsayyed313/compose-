@@ -16,13 +16,13 @@ jobs:
           
       - name: Build
         run: |
-           git clone --depth 1 https://github.com/HariAgus/GroceriesApp-Compose.git
-           cd GroceriesApp-Compose
+           git clone --depth 1 https://github.com/arya458/SideMenuJetPackCompose.git
+           cd SideMenuJetPackCompose
            chmod +x gradlew
            ./gradlew assembleDebug --no-daemon
       - name: Upload Build Output
         uses: actions/upload-artifact@v4
         with:
           name: app
-          path: GroceriesApp-Compose/app/build/outputs/apk
+          path: SideMenuJetPackCompose/app/build/outputs/apk
     
