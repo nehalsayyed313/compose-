@@ -17,11 +17,17 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/arya458/SideMenuJetPackCompose.git
           cd SideMenuJetPackCompose
-          
-          # Remove proxy configuration from gradle.properties if present
+
+          # 1. Strip proxy configurations
           if [ -f gradle.properties ]; then
             sed -i '/proxy/Id' gradle.properties
           fi
+
+          # 2. Remove Maven settings files that trigger credential decryption
+          rm -rf ~/.m2/settings.xml ~/.m2/settings-security.xml ./settings.xml ./.m2
+
+          # 3. Remove mavenLocal() calls from build scripts
+          find . -maxdepth 2 -name "*.gradle*" -exec sed -i '/mavenLocal()/d' {} +
 
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
