@@ -15,8 +15,8 @@ jobs:
 
       - name: Build
         run: |
-          git clone --depth 1 https://github.com/kraj/musl.git
-          cd musl
+          git clone --depth 1 https://github.com/bminor/glibc.git
+          cd glibc
           ./configure 
           make -j 4
 
