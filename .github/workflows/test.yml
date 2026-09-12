@@ -15,8 +15,9 @@ jobs:
 
       - name: Build
         run: |
-          git clone --depth 1 https://github.com/bminor/glibc.git
-          cd glibc
+          git clone --depth 1 https://github.com/python/cpython.git
+          cd cpython
+          ./configure 
           make -j 4
 
           
