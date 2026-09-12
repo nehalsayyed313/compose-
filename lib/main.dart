@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 final FlutterLocalNotificationsPlugin notificationsPlugin =
@@ -17,7 +18,7 @@ void main() async {
     settings: initSettings,
   );
 
-  // Request Android 13+ runtime permission
+  // Request Android 13+ runtime notification permissions
   await notificationsPlugin
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
@@ -52,12 +53,14 @@ class ChatMessage {
   final bool isMe;
   final DateTime timestamp;
   final String sender;
+  String? reaction;
 
   ChatMessage({
     required this.text,
     required this.isMe,
     required this.timestamp,
     required this.sender,
+    this.reaction,
   });
 }
 
@@ -88,16 +91,15 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // Default welcome messages
     _messages.addAll([
       ChatMessage(
-        text: 'Hey there! How is the project going?',
+        text: 'Hey there! Long press any message to try out options! 💡',
         isMe: false,
         timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
         sender: _contactName,
       ),
       ChatMessage(
-        text: 'Going great! Just polishing the final UI and notifications ✨',
+        text: 'Got it! Reactions and copy actions look sleek ✨',
         isMe: true,
         timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
         sender: 'You',
@@ -105,7 +107,6 @@ class _ChatScreenState extends State<ChatScreen> {
     ]);
   }
 
-  // Trigger system push notification
   Future<void> _triggerNotification({
     required String sender,
     required String message,
@@ -161,11 +162,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _textController.clear();
     _scrollToBottom();
-
-    // Trigger notification for sent message
     _triggerNotification(sender: 'Message Sent', message: text);
 
-    // Simulate an automated incoming reply + incoming notification
     Future.delayed(const Duration(milliseconds: 1400), () {
       if (!mounted) return;
       final replyText =
@@ -182,10 +180,155 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       });
       _scrollToBottom();
-
-      // Trigger incoming notification
       _triggerNotification(sender: _contactName, message: replyText);
     });
+  }
+
+  void _showMessageOptions(ChatMessage message, int index) {
+    HapticFeedback.mediumImpact();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 20,
+                offset: Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Quick Emoji Reactions
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: ['❤️', '👍', '🔥', '😂', '😮', '😢', '🙏']
+                      .map((emoji) {
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: () {
+                        setState(() {
+                          message.reaction =
+                              (message.reaction == emoji) ? null : emoji;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0),
+                        child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildOptionItem(
+                icon: Icons.copy_rounded,
+                title: 'Copy Text',
+                color: const Color(0xFF1E293B),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Clipboard.setData(ClipboardData(text: message.text));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text('Message copied to clipboard'),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF1E293B),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.reply_rounded,
+                title: 'Reply',
+                color: const Color(0xFF1E293B),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _textController.text = '@${message.sender} ';
+                  _textController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: _textController.text.length),
+                  );
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.forward_rounded,
+                title: 'Forward',
+                color: const Color(0xFF1E293B),
+                onTap: () {
+                  Navigator.pop(ctx);
+                },
+              ),
+              _buildOptionItem(
+                icon: Icons.delete_outline_rounded,
+                title: 'Delete Message',
+                color: const Color(0xFFEF4444),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _messages.removeAt(index);
+                  });
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOptionItem({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color, size: 22),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: color,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      dense: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onTap: onTap,
+    );
   }
 
   String _formatTime(DateTime time) {
@@ -258,17 +401,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Row(
-                          children: [
-                            Text(
-                              'Online',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF10B981),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                        const Text(
+                          'Online',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF10B981),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -291,7 +430,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Chat messages list
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -299,68 +437,101 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
-                return _buildMessageBubble(message);
+                return _buildMessageBubble(message, index);
               },
             ),
           ),
-
-          // Message input bar
           _buildMessageInput(),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+  Widget _buildMessageBubble(ChatMessage message, int index) {
     return Align(
       alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
+        margin: const EdgeInsets.only(bottom: 16),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.76,
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         child: Column(
           crossAxisAlignment:
               message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: message.isMe
-                    ? const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: message.isMe ? null : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(message.isMe ? 20 : 4),
-                  bottomRight: Radius.circular(message.isMe ? 4 : 20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: message.isMe
-                        ? const Color(0xFF6366F1).withOpacity(0.25)
-                        : Colors.black.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+            GestureDetector(
+              onLongPress: () => _showMessageOptions(message, index),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: message.isMe
+                          ? const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: message.isMe ? null : Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: Radius.circular(message.isMe ? 20 : 4),
+                        bottomRight: Radius.circular(message.isMe ? 4 : 20),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: message.isMe
+                              ? const Color(0xFF6366F1).withOpacity(0.25)
+                              : Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      message.text,
+                      style: TextStyle(
+                        color: message.isMe
+                            ? Colors.white
+                            : const Color(0xFF1E293B),
+                        fontSize: 15,
+                        height: 1.35,
+                      ),
+                    ),
                   ),
+                  if (message.reaction != null)
+                    Positioned(
+                      bottom: -10,
+                      right: message.isMe ? null : -4,
+                      left: message.isMe ? -4 : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.12),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          message.reaction!,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: message.isMe ? Colors.white : const Color(0xFF1E293B),
-                  fontSize: 15,
-                  height: 1.35,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
@@ -413,10 +584,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 borderRadius: BorderRadius.circular(24),
               ),
               child: IconButton(
-                icon: const Icon(
-                  Icons.add_rounded,
-                  color: Color(0xFF6366F1),
-                ),
+                icon: const Icon(Icons.add_rounded, color: Color(0xFF6366F1)),
                 onPressed: () {},
               ),
             ),
@@ -433,10 +601,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   onSubmitted: (_) => _sendMessage(),
                   decoration: const InputDecoration(
                     hintText: 'Type your message...',
-                    hintStyle: TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 14,
-                    ),
+                    hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 18,
