@@ -1,23 +1,87 @@
-name: Build
+name: Build .NET Standalone for Termux (ARM64)
 
 on:
   workflow_dispatch:
+    inputs:
+      project_name:
+        description: "Name of the .NET project to initialize"
+        required: true
+        default: "TermuxDotnetApp"
+        type: string
+      dotnet_version:
+        description: ".NET SDK Version"
+        required: true
+        default: "8.0.x"
+        type: choice
+        options:
+          - "8.0.x"
+          - "9.0.x"
 
 jobs:
-  build:
+  build-arm64:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Build
+      - name: Install ARM64 Cross-Compilation Toolchain
         run: |
-          git clone --depth 1 https://github.com/python/cpython.git
-          cd cpython
-          ./configure 
-          make -j 4
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            llvm \
+            binutils-aarch64-linux-gnu \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
 
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      - name: Initialize and Configure Project
+        run: |
+          mkdir -p workspace
+          cd workspace
+          
+          # Initialize a new console project
+          dotnet new console -n ${{ inputs.project_name }}
+          cd ${{ inputs.project_name }}
+
+          # Enable Native AOT and Trim optimizations in the .csproj
+          sed -i '/<\/Project>/i \  <PropertyGroup>\n    <PublishAot>true</PublishAot>\n    <StripSymbols>true</StripSymbols>\n    <InvariantGlobalization>true</InvariantGlobalization>\n  </PropertyGroup>' ${{ inputs.project_name }}.csproj
+
+          # Add sample entry point code
+          cat << 'EOF' > Program.cs
+          using System;
+          using System.Runtime.InteropServices;
+
+          Console.WriteLine("=== .NET Standalone Native Binary Running on Termux ===");
+          Console.WriteLine($"OS Architecture : {RuntimeInformation.OSArchitecture}");
+          Console.WriteLine($"OS Description  : {RuntimeInformation.OSDescription}");
+          Console.WriteLine($"Framework       : {RuntimeInformation.FrameworkDescription}");
+          Console.WriteLine("Hello from native ARM64 .NET!");
+          EOF
+
+      - name: Cross-Compile Standalone Binary (Native AOT linux-arm64)
+        run: |
+          cd workspace/${{ inputs.project_name }}
+          
+          # Compile native AOT targeting ARM64 using the cross-toolchain
+          dotnet publish -r linux-arm64 -c Release \
+            -p:PublishAot=true \
+            -p:SysRoot="" \
+            -p:CppCompilerAndLinker=aarch64-linux-gnu-gcc \
+            -o ./publish
+
+      - name: Prepare Artifact Package
+        run: |
+          mkdir -p dist
+          cp workspace/${{ inputs.project_name }}/publish/${{ inputs.project_name }} dist/
+          chmod +x dist/${{ inputs.project_name }}
+
+      - name: Upload Standalone Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.project_name }}-linux-arm64
+          path: dist/${{ inputs.project_name }}
+          if-no-files-found: error
           
