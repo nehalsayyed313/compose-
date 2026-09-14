@@ -1,43 +1,57 @@
-name: Build
+name: Build Skia ARM64
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
   workflow_dispatch:
 
 jobs:
   build-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Set up Bazelisk
-        uses: bazelbuild/setup-bazelisk@v3
+      - name: Checkout Skia
+        uses: actions/checkout@v4
+        with:
+          repository: google/skia
+          path: skia
+          submodules: recursive
+          fetch-depth: 1
 
-      - name: Install System Dependencies & ARM64 Toolchain
+      - name: Install Cross-Compilation Toolchains & Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git \
-            python3 \
+            build-essential \
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
-            libgl1-mesa-dev \
+            binutils-aarch64-linux-gnu \
+            pkg-config-aarch64-linux-gnu \
+            python3 \
             libfontconfig1-dev
 
-      - name: Clone Skia Repository & Sync Dependencies
-        run: |
-          git clone --depth 1 https://github.com/google/skia.git
-          cd skia
-          python3 tools/git-sync-deps
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@v0.8.5
+        with:
+          bazelisk-version: 'latest'
 
-      - name: Build Skia ARM64 Linux Library
+      - name: Configure and Build Skia (Bazel)
+        working-directory: skia
         run: |
-          cd skia
-          bazel build //:skia_public \
-            --config=linux_arm64 \
-            --compilation_mode=opt
+          # Define the missing linux_arm64 config mapping in user.bazelrc
+          cat << 'EOF' > user.bazelrc
+          build:linux_arm64 --cpu=aarch64
+          build:linux_arm64 --platforms=//bazel/platform:linux_arm64
+          build:linux_arm64 --compilation_mode=opt
+          EOF
 
-      - name: Upload Built Library
+          # Build public Skia target
+          bazel build //:skia_public --config=linux_arm64
+
+      - name: Upload Skia Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: libskia-linux-arm64
+          name: skia-linux-arm64
           path: skia/bazel-bin/libskia_public.a
           
