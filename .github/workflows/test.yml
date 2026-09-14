@@ -1,15 +1,43 @@
-name: Build Native Termux .NET Binary (Android NDK)
+name: Build
 
 on:
   workflow_dispatch:
-    
 
 jobs:
-  build-bionic:
+  build-arm64:
     runs-on: ubuntu-latest
 
     steps:
-      
-      - name: Initialize and Configure Project
+      - name: Set up Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Install System Dependencies & ARM64 Toolchain
         run: |
-             $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            python3 \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            libgl1-mesa-dev \
+            libfontconfig1-dev
+
+      - name: Clone Skia Repository & Sync Dependencies
+        run: |
+          git clone --depth 1 https://github.com/google/skia.git
+          cd skia
+          python3 tools/git-sync-deps
+
+      - name: Build Skia ARM64 Linux Library
+        run: |
+          cd skia
+          bazel build //:skia_public \
+            --config=linux_arm64 \
+            --compilation_mode=opt
+
+      - name: Upload Built Library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libskia-linux-arm64
+          path: skia/bazel-bin/libskia_public.a
+          
