@@ -26,23 +26,30 @@ jobs:
             curl \
             git
 
-      - name: Install Bazelisk (ARM64 Binary)
+      - name: Install Bazelisk
         run: |
           sudo curl -fSsL -o /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-arm64
           sudo chmod +x /usr/local/bin/bazel
           bazel --version
 
-      - name: Build Skia (Native ARM64)
+      - name: List Available Top-Level Targets (Diagnostic)
         working-directory: skia
         run: |
-          # Build public Skia static library in release mode
-          bazel build //:skia_public --compilation_mode=opt
+          bazel query 'kind("cc_library", //:*)'
+
+      - name: Build Skia Core Library
+        working-directory: skia
+        run: |
+          # Build Skia core static library in release mode
+          bazel build //:skia_core --compilation_mode=opt
 
       - name: Upload Skia Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: skia-linux-arm64
-          path: skia/bazel-bin/libskia_public.a
+          path: |
+            skia/bazel-bin/libskia_core.a
+            skia/bazel-bin/*.a
           if-no-files-found: warn
           
