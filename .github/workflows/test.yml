@@ -2,98 +2,14 @@ name: Build Native Termux .NET Binary (Android NDK)
 
 on:
   workflow_dispatch:
-    inputs:
-      project_name:
-        description: "Project Name"
-        required: true
-        default: "TermuxNativeApp"
-        type: string
-      dotnet_version:
-        description: ".NET SDK Version"
-        required: true
-        default: "9.0.x"
-        type: choice
-        options:
-          - "8.0.x"
-          - "9.0.x"
-          - "10.0.x"
-      ndk_version:
-        description: "Android NDK Version"
-        required: true
-        default: "r27c"
-        type: string
+    
 
 jobs:
   build-bionic:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: ${{ inputs.ndk_version }}
-          add-to-path: true
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ inputs.dotnet_version }}
-
+      
       - name: Initialize and Configure Project
         run: |
-          mkdir -p workspace
-          cd workspace
-          
-          dotnet new console -n ${{ inputs.project_name }}
-          cd ${{ inputs.project_name }}
-
-          # Configure .csproj for Native AOT on Android Bionic
-          sed -i '/<\/Project>/i \  <PropertyGroup>\n    <PublishAot>true</PublishAot>\n    <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>\n    <DisableUnsupportedError>true</DisableUnsupportedError>\n    <StripSymbols>true</StripSymbols>\n    <InvariantGlobalization>true</InvariantGlobalization>\n  </PropertyGroup>' ${{ inputs.project_name }}.csproj
-
-          cat << 'EOF' > Program.cs
-          using System;
-          using System.Runtime.InteropServices;
-
-          Console.WriteLine("=============================================");
-          Console.WriteLine("  .NET Native AOT running natively on Android");
-          Console.WriteLine("=============================================");
-          Console.WriteLine($"Architecture : {RuntimeInformation.OSArchitecture}");
-          Console.WriteLine($"OS Version   : {RuntimeInformation.OSDescription}");
-          Console.WriteLine($"Process Arch : {RuntimeInformation.ProcessArchitecture}");
-          Console.WriteLine($"Framework    : {RuntimeInformation.FrameworkDescription}");
-          Console.WriteLine();
-          Console.WriteLine("Hello directly from Bionic libc in Termux!");
-          EOF
-
-      - name: Compile Native Binary with NDK (linux-bionic-arm64)
-        run: |
-          cd workspace/${{ inputs.project_name }}
-
-          # Point PATH explicitly to NDK's LLVM toolchain binaries first
-          export PATH="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-
-          dotnet publish -r linux-bionic-arm64 -c Release \
-            -p:PublishAot=true \
-            -p:PublishAotUsingRuntimePack=true \
-            -p:DisableUnsupportedError=true \
-            -o ./publish
-
-      - name: Verify ELF Headers
-        run: |
-          BINARY="workspace/${{ inputs.project_name }}/publish/${{ inputs.project_name }}"
-          readelf -h "$BINARY" | grep -E "Class|Machine"
-          readelf -l "$BINARY" | grep "program interpreter"
-
-      - name: Prepare Output
-        run: |
-          mkdir -p dist
-          cp workspace/${{ inputs.project_name }}/publish/${{ inputs.project_name }} dist/
-          chmod +x dist/${{ inputs.project_name }}
-
-      - name: Upload Standalone Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.project_name }}-android-arm64
-          path: dist/${{ inputs.project_name }}
-          if-no-files-found: error
+             $ANDROID_HOME/tools/bin/sdkmanager --list
