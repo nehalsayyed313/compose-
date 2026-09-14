@@ -1,11 +1,11 @@
-name: Build Skia ARM64
+name: Build Skia ARM64 (Native Runner)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-arm64:
-    runs-on: ubuntu-24.04
+  build-skia:
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout Skia
@@ -16,37 +16,27 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Install Cross-Toolchains and Dependencies
+      - name: Install Native Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            binutils-aarch64-linux-gnu \
-            pkg-config-aarch64-linux-gnu \
             python3 \
             libfontconfig1-dev \
-            curl
+            curl \
+            git
 
-      - name: Install Bazelisk (Direct Binary)
+      - name: Install Bazelisk (ARM64 Binary)
         run: |
-          sudo curl -fSsL -o /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+          sudo curl -fSsL -o /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-arm64
           sudo chmod +x /usr/local/bin/bazel
           bazel --version
 
-      - name: Configure and Build Skia
+      - name: Build Skia (Native ARM64)
         working-directory: skia
         run: |
-          # Define linux_arm64 config preset
-          cat << 'EOF' > user.bazelrc
-          build:linux_arm64 --cpu=aarch64
-          build:linux_arm64 --platforms=//bazel/platform:linux_arm64
-          build:linux_arm64 --compilation_mode=opt
-          EOF
-
-          # Run build
-          bazel build //:skia_public --config=linux_arm64
+          # Build public Skia static library in release mode
+          bazel build //:skia_public --compilation_mode=opt
 
       - name: Upload Skia Artifacts
         uses: actions/upload-artifact@v4
