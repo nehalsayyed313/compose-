@@ -1,4 +1,4 @@
-name: Android Emulator Xvfb Recording (3 Min Fix)
+name: Android 34 KVM Emulator Recording (3 Min)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   run-emulator:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
 
     steps:
       - name: Enable KVM Hardware Acceleration
@@ -14,7 +14,8 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
-          ls -l /dev/kvm || true
+          sudo chmod 666 /dev/kvm || true
+          ls -l /dev/kvm
 
       - name: Install System Dependencies
         run: |
@@ -33,34 +34,40 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH" >> $GITHUB_ENV
 
-      - name: Install Fast System Image (API 30 AOSP)
+      - name: Install Android 34 System Image
         run: |
           yes | sdkmanager --licenses
-          sdkmanager --install "system-images;android-34;default;x86_64" "emulator" "platform-tools"
+          sdkmanager --install "system-images;android-34;google_apis;x86_64" "emulator" "platform-tools"
 
-      - name: Create Lightweight AVD
+      - name: Create & Optimize Android 34 AVD
         run: |
           echo "no" | avdmanager create avd \
             -n test_emulator \
-            -k "system-images;android-30;default;x86_64" \
+            -k "system-images;android-34;google_apis;x86_64" \
             --force \
-            --device "Nexus 5X"
+            --device "pixel_6"
 
+          # Tune AVD configuration for fast KVM execution on 2-core runners
           CONFIG_PATH="$HOME/.android/avd/test_emulator.avd/config.ini"
-          echo "hw.ramSize=2048" >> $CONFIG_PATH
-          echo "vm.heapSize=256" >> $CONFIG_PATH
-          echo "hw.gpu.enabled=yes" >> $CONFIG_PATH
-          echo "hw.gpu.mode=swiftshader_indirect" >> $CONFIG_PATH
+          cat << 'EOF' >> "$CONFIG_PATH"
+          hw.ramSize=3072
+          vm.heapSize=512
+          hw.cpu.ncore=2
+          hw.gpu.enabled=yes
+          hw.gpu.mode=swiftshader_indirect
+          hw.keyboard=yes
+          disk.dataPartition.size=4096M
+          EOF
 
-      - name: Run Emulator and Record Screen via Xvfb
+      - name: Launch Emulator, Record 3 Minutes, and Clean Exit
         run: |
-          # 1. Start Xvfb (redirect stdout/stderr to avoid hanging runner pipes)
+          # 1. Start Xvfb virtual display
           Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
           export DISPLAY=:99
           sleep 2
 
-          # 2. Start FFmpeg with 180s capture limit
-          echo "==> Starting 3-minute recording..."
+          # 2. Start 3-minute screen recording (-t 180)
+          echo "==> Starting 3-minute FFmpeg capture..."
           ffmpeg -y \
             -video_size 1280x1024 \
             -framerate 30 \
@@ -73,64 +80,60 @@ jobs:
             emulator_session.mp4 > /tmp/ffmpeg.log 2>&1 &
           FFMPEG_PID=$!
 
-          # 3. Launch Emulator in background with output redirected
-          echo "==> Starting Android Emulator..."
-          ACCEL_FLAG="-accel on"
-          if [ ! -e /dev/kvm ]; then
-            ACCEL_FLAG="-accel off"
-          fi
-
+          # 3. Launch Android 34 with hardware acceleration (KVM)
+          echo "==> Launching Android 34 Emulator with KVM..."
           emulator \
             -avd test_emulator \
-            $ACCEL_FLAG \
+            -accel on \
             -gpu swiftshader_indirect \
             -no-audio \
             -no-boot-anim \
             -no-snapshot \
             -netfast \
-            -memory 2048 \
+            -memory 3072 \
             -cores 2 \
             -camera-back none \
             -camera-front none > /dev/null 2>&1 &
 
-          # 4. Wait for ADB device (bounded check)
-          echo "==> Waiting for ADB device..."
-          timeout 60 adb wait-for-device || echo "ADB wait timed out, continuing..."
+          # 4. Wait for ADB connection
+          echo "==> Connecting to ADB..."
+          timeout 90 adb wait-for-device || echo "ADB wait reached limit, polling status..."
 
-          # 5. Boot polling
-          echo "==> Checking boot status..."
-          for i in {1..45}; do
+          # 5. Poll for boot completion
+          echo "==> Polling boot status..."
+          for i in {1..75}; do
             BOOT_STATUS=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             if [ "$BOOT_STATUS" = "1" ]; then
-              echo "==> Boot complete in ~$((i * 2))s"
+              echo "==> Android 34 booted successfully in ~$((i * 2))s!"
               break
             fi
             sleep 2
           done
 
-          # 6. Device interactions
+          # 6. Interact with device
           adb shell input keyevent 82 || true
           sleep 2
           adb shell am start -a android.intent.action.VIEW -d "https://www.google.com" || true
 
-          # 7. Wait specifically for FFmpeg to finish writing MP4 container
-          echo "==> Waiting for FFmpeg to finish 180s capture..."
+          # 7. Wait for 3-minute recording to finalize MP4 file
+          echo "==> Waiting for 3-minute recording to complete..."
           wait $FFMPEG_PID || true
-          echo "==> FFmpeg exited cleanly."
+          echo "==> Video capture complete."
 
-          # 8. Force kill all background process trees and ADB daemon
+          # 8. Force kill all background process trees to prevent CI hangs
+          echo "==> Cleaning up background processes..."
           adb kill-server || true
           pkill -9 -f qemu-system || true
           pkill -9 -f emulator || true
           pkill -9 -f Xvfb || true
           pkill -9 -f ffmpeg || true
-          echo "==> All processes terminated."
+          echo "==> Done."
 
       - name: Upload Video Recording Artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-emulator-video
+          name: android-34-session-video
           path: emulator_session.mp4
           if-no-files-found: error
           
