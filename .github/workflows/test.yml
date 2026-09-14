@@ -1,9 +1,6 @@
 name: Build Skia ARM64
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -19,7 +16,7 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Install Cross-Compilation Toolchains & Dependencies
+      - name: Install Cross-Toolchains and Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -29,29 +26,33 @@ jobs:
             binutils-aarch64-linux-gnu \
             pkg-config-aarch64-linux-gnu \
             python3 \
-            libfontconfig1-dev
+            libfontconfig1-dev \
+            curl
 
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@v0.8.5
-        with:
-          bazelisk-version: 'latest'
+      - name: Install Bazelisk (Direct Binary)
+        run: |
+          sudo curl -fSsL -o /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+          sudo chmod +x /usr/local/bin/bazel
+          bazel --version
 
-      - name: Configure and Build Skia (Bazel)
+      - name: Configure and Build Skia
         working-directory: skia
         run: |
-          # Define the missing linux_arm64 config mapping in user.bazelrc
+          # Define linux_arm64 config preset
           cat << 'EOF' > user.bazelrc
           build:linux_arm64 --cpu=aarch64
           build:linux_arm64 --platforms=//bazel/platform:linux_arm64
           build:linux_arm64 --compilation_mode=opt
           EOF
 
-          # Build public Skia target
+          # Run build
           bazel build //:skia_public --config=linux_arm64
 
       - name: Upload Skia Artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: skia-linux-arm64
           path: skia/bazel-bin/libskia_public.a
+          if-no-files-found: warn
           
