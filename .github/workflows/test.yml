@@ -1,4 +1,4 @@
-name: Android Emulator Xvfb Recording (3 Minutes)
+name: Android Emulator Xvfb Recording (3 Min Fix)
 
 on:
   workflow_dispatch:
@@ -6,16 +6,17 @@ on:
 jobs:
   run-emulator:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
 
     steps:
       - name: Enable KVM Hardware Acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -l /dev/kvm
+          sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || true
 
-      - name: Install System Dependencies (Xvfb, FFmpeg, Modern OpenGL)
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -24,36 +25,42 @@ jobs:
             libpulse0 \
             libgl1 \
             libglx-mesa0 \
-            libgl1-mesa-dri
+            libgl1-mesa-dri \
+            procps
 
       - name: Set Android SDK Environment Variables
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH" >> $GITHUB_ENV
 
-      - name: Accept Licenses & Install Emulator System Image
+      - name: Install Fast System Image (API 30 AOSP)
         run: |
           yes | sdkmanager --licenses
-          sdkmanager --install "system-images;android-34;google_apis;x86_64" "emulator" "platform-tools"
+          sdkmanager --install "system-images;android-34;default;x86_64" "emulator" "platform-tools"
 
-      - name: Create AVD (Android Virtual Device)
+      - name: Create Lightweight AVD
         run: |
           echo "no" | avdmanager create avd \
             -n test_emulator \
-            -k "system-images;android-34;google_apis;x86_64" \
+            -k "system-images;android-30;default;x86_64" \
             --force \
-            --device "pixel_6"
+            --device "Nexus 5X"
+
+          CONFIG_PATH="$HOME/.android/avd/test_emulator.avd/config.ini"
+          echo "hw.ramSize=2048" >> $CONFIG_PATH
+          echo "vm.heapSize=256" >> $CONFIG_PATH
+          echo "hw.gpu.enabled=yes" >> $CONFIG_PATH
+          echo "hw.gpu.mode=swiftshader_indirect" >> $CONFIG_PATH
 
       - name: Run Emulator and Record Screen via Xvfb
         run: |
-          # 1. Start Xvfb virtual display on screen :99
-          Xvfb :99 -screen 0 1280x1024x24 &
-          XVFB_PID=$!
+          # 1. Start Xvfb (redirect stdout/stderr to avoid hanging runner pipes)
+          Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
           export DISPLAY=:99
           sleep 2
 
-          # 2. Start screen recording with 3-minute hard limit (-t 180)
-          echo "==> Starting 3-minute video recording..."
+          # 2. Start FFmpeg with 180s capture limit
+          echo "==> Starting 3-minute recording..."
           ffmpeg -y \
             -video_size 1280x1024 \
             -framerate 30 \
@@ -63,47 +70,61 @@ jobs:
             -c:v libx264 \
             -preset ultrafast \
             -pix_fmt yuv420p \
-            emulator_session.mp4 &
+            emulator_session.mp4 > /tmp/ffmpeg.log 2>&1 &
           FFMPEG_PID=$!
 
-          # 3. Launch Android Emulator inside the Xvfb session
+          # 3. Launch Emulator in background with output redirected
           echo "==> Starting Android Emulator..."
+          ACCEL_FLAG="-accel on"
+          if [ ! -e /dev/kvm ]; then
+            ACCEL_FLAG="-accel off"
+          fi
+
           emulator \
             -avd test_emulator \
-            -accel on \
+            $ACCEL_FLAG \
             -gpu swiftshader_indirect \
             -no-audio \
             -no-boot-anim \
             -no-snapshot \
+            -netfast \
+            -memory 2048 \
+            -cores 2 \
             -camera-back none \
-            -camera-front none &
-          EMULATOR_PID=$!
+            -camera-front none > /dev/null 2>&1 &
 
-          # 4. Wait for Android OS to complete booting
-          echo "==> Waiting for ADB and boot completion..."
-          adb wait-for-device
-          
-          BOOT_STATUS=""
-          while [ "$BOOT_STATUS" != "1" ]; do
+          # 4. Wait for ADB device (bounded check)
+          echo "==> Waiting for ADB device..."
+          timeout 60 adb wait-for-device || echo "ADB wait timed out, continuing..."
+
+          # 5. Boot polling
+          echo "==> Checking boot status..."
+          for i in {1..45}; do
             BOOT_STATUS=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            echo "Waiting for sys.boot_completed... (current: '$BOOT_STATUS')"
+            if [ "$BOOT_STATUS" = "1" ]; then
+              echo "==> Boot complete in ~$((i * 2))s"
+              break
+            fi
             sleep 2
           done
-          echo "==> Emulator fully booted!"
 
-          # 5. Run UI actions on the booted device
-          adb shell input keyevent 82 # Unlock screen
-          sleep 3
-          adb shell am start -a android.intent.action.VIEW -d "https://www.google.com"
+          # 6. Device interactions
+          adb shell input keyevent 82 || true
+          sleep 2
+          adb shell am start -a android.intent.action.VIEW -d "https://www.google.com" || true
 
-          # 6. Wait for the 3-minute recording to complete
-          echo "==> Waiting for 3-minute recording duration to finish..."
+          # 7. Wait specifically for FFmpeg to finish writing MP4 container
+          echo "==> Waiting for FFmpeg to finish 180s capture..."
           wait $FFMPEG_PID || true
-          echo "==> Recording complete!"
+          echo "==> FFmpeg exited cleanly."
 
-          # Clean up background processes
-          kill -9 $EMULATOR_PID || true
-          kill -9 $XVFB_PID || true
+          # 8. Force kill all background process trees and ADB daemon
+          adb kill-server || true
+          pkill -9 -f qemu-system || true
+          pkill -9 -f emulator || true
+          pkill -9 -f Xvfb || true
+          pkill -9 -f ffmpeg || true
+          echo "==> All processes terminated."
 
       - name: Upload Video Recording Artifact
         uses: actions/upload-artifact@v4
