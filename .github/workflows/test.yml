@@ -1,4 +1,4 @@
-name: Android Emulator Xvfb Recording
+name: Android Emulator Xvfb Recording (3 Minutes)
 
 on:
   workflow_dispatch:
@@ -52,13 +52,14 @@ jobs:
           export DISPLAY=:99
           sleep 2
 
-          # 2. Start screen recording via FFmpeg
-          echo "==> Starting video recording..."
+          # 2. Start screen recording with 3-minute hard limit (-t 180)
+          echo "==> Starting 3-minute video recording..."
           ffmpeg -y \
             -video_size 1280x1024 \
             -framerate 30 \
             -f x11grab \
             -i :99.0 \
+            -t 180 \
             -c:v libx264 \
             -preset ultrafast \
             -pix_fmt yuv420p \
@@ -94,12 +95,11 @@ jobs:
           adb shell input keyevent 82 # Unlock screen
           sleep 3
           adb shell am start -a android.intent.action.VIEW -d "https://www.google.com"
-          sleep 5
 
-          # 6. Stop recording gracefully with SIGINT to finalize MP4 container
-          echo "==> Stopping recording..."
-          kill -2 $FFMPEG_PID || true
+          # 6. Wait for the 3-minute recording to complete
+          echo "==> Waiting for 3-minute recording duration to finish..."
           wait $FFMPEG_PID || true
+          echo "==> Recording complete!"
 
           # Clean up background processes
           kill -9 $EMULATOR_PID || true
