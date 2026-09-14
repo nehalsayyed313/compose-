@@ -1,55 +1,114 @@
-name: Build Skia ARM64 (Native Runner)
+name: Android Emulator Xvfb Recording
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-skia:
-    runs-on: ubuntu-24.04-arm
+  run-emulator:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Skia
-        uses: actions/checkout@v4
-        with:
-          repository: google/skia
-          path: skia
-          submodules: recursive
-          fetch-depth: 1
+      - name: Enable KVM Hardware Acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          # Verify KVM accessibility
+          ls -l /dev/kvm
 
-      - name: Install Native Build Dependencies
+      - name: Install System Dependencies (Xvfb & FFmpeg)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            python3 \
-            libfontconfig1-dev \
-            curl \
-            git
+            xvfb \
+            ffmpeg \
+            libpulse0 \
+            libgl1-mesa-glx
 
-      - name: Install Bazelisk
+      - name: Set Android SDK Environment Variables
         run: |
-          sudo curl -fSsL -o /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-arm64
-          sudo chmod +x /usr/local/bin/bazel
-          bazel --version
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH" >> $GITHUB_ENV
 
-      - name: List Available Top-Level Targets (Diagnostic)
-        working-directory: skia
+      - name: Accept Licenses & Install Emulator System Image
         run: |
-          bazel query 'kind("cc_library", //:*)'
+          yes | sdkmanager --licenses
+          sdkmanager --install "system-images;android-34;google_apis;x86_64" "emulator" "platform-tools"
 
-      - name: Build Skia Core Library
-        working-directory: skia
+      - name: Create AVD (Android Virtual Device)
         run: |
-          # Build Skia core static library in release mode
-          bazel build //:skia_core --compilation_mode=opt
+          echo "no" | avdmanager create avd \
+            -n test_emulator \
+            -k "system-images;android-34;google_apis;x86_64" \
+            --force \
+            --device "pixel_6"
 
-      - name: Upload Skia Artifacts
+      - name: Run Emulator and Record Screen via Xvfb
+        run: |
+          # 1. Start Xvfb virtual display on screen :99
+          Xvfb :99 -screen 0 1280x1024x24 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          sleep 2
+
+          # 2. Start full-screen recording via FFmpeg on :99.0
+          echo "==> Starting video recording..."
+          ffmpeg -y \
+            -video_size 1280x1024 \
+            -framerate 30 \
+            -f x11grab \
+            -i :99.0 \
+            -c:v libx264 \
+            -preset ultrafast \
+            -pix_fmt yuv420p \
+            emulator_session.mp4 &
+          FFMPEG_PID=$!
+
+          # 3. Launch Android Emulator inside the Xvfb session
+          echo "==> Starting Android Emulator..."
+          emulator \
+            -avd test_emulator \
+            -accel on \
+            -gpu swiftshader_indirect \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            -camera-back none \
+            -camera-front none &
+          EMULATOR_PID=$!
+
+          # 4. Wait for Android OS to complete booting
+          echo "==> Waiting for ADB and boot completion..."
+          adb wait-for-device
+          
+          BOOT_STATUS=""
+          while [ "$BOOT_STATUS" != "1" ]; do
+            BOOT_STATUS=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            echo "Waiting for sys.boot_completed... (current: '$BOOT_STATUS')"
+            sleep 2
+          done
+          echo "==> Emulator fully booted!"
+
+          # 5. Run commands / actions on the booted device
+          adb shell input keyevent 82 # Unlock screen
+          sleep 3
+          adb shell am start -a android.intent.action.VIEW -d "https://www.google.com" # Open browser
+          sleep 5
+
+          # 6. Gracefully terminate FFmpeg with SIGINT to properly write the MP4 headers
+          echo "==> Stopping recording..."
+          kill -2 $FFMPEG_PID || true
+          wait $FFMPEG_PID || true
+
+          # Clean up emulator & Xvfb processes
+          kill -9 $EMULATOR_PID || true
+          kill -9 $XVFB_PID || true
+
+      - name: Upload Video Recording Artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: skia-linux-arm64
-          path: |
-            skia/bazel-bin/libskia_core.a
-            skia/bazel-bin/*.a
-          if-no-files-found: warn
+          name: android-emulator-video
+          path: emulator_session.mp4
+          if-no-files-found: error
           
