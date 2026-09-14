@@ -12,4 +12,4 @@ jobs:
       
       - name: Initialize and Configure Project
         run: |
-             $ANDROID_HOME/tools/bin/sdkmanager --list
+             $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list
