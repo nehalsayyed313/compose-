@@ -17,4 +17,4 @@ jobs:
              git clone --depth 1 https://github.com/Kotlin/kotlinx.serialization.git
              cd kotlinx.serialization
              chmod +x gradlew 
-             ./gradlew build
+             ./gradlew build --no-daemon 
