@@ -1,148 +1,20 @@
-name: Android 34 KVM Emulator Recording (3 Min)
+name: Build
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  run-emulator:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Enable KVM Hardware Acceleration
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm || true
-          sudo chmod 666 /dev/kvm || true
-          ls -l /dev/kvm
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            xvfb \
-            ffmpeg \
-            libpulse0 \
-            libgl1 \
-            libglx-mesa0 \
-            libgl1-mesa-dri \
-            procps
-
-      - name: Set Android SDK Environment Variables
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH" >> $GITHUB_ENV
-
-      - name: Install Android 34 System Image
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager --install "system-images;android-34;google_apis;x86_64" "emulator" "platform-tools"
-
-      - name: Create & Optimize Android 34 AVD
-        run: |
-          # 1. Ensure directory structure exists
-          mkdir -p ~/.android/avd/test_emulator.avd
-
-          # 2. Create AVD using standard configuration (omitting non-standard device tags)
-          echo "no" | avdmanager create avd \
-            -n test_emulator \
-            -k "system-images;android-34;google_apis;x86_64" \
-            --force
-
-          # 3. Locate the generated config.ini or initialize it
-          CONFIG_PATH=$(find "$HOME/.android" -name "config.ini" | head -n 1)
-          if [ -z "$CONFIG_PATH" ]; then
-            CONFIG_PATH="$HOME/.android/avd/test_emulator.avd/config.ini"
-            touch "$CONFIG_PATH"
-          fi
-
-          echo "==> Configuring AVD at: $CONFIG_PATH"
-          cat << 'EOF' >> "$CONFIG_PATH"
-          hw.ramSize=3072
-          vm.heapSize=512
-          hw.cpu.ncore=2
-          hw.gpu.enabled=yes
-          hw.gpu.mode=swiftshader_indirect
-          hw.keyboard=yes
-          disk.dataPartition.size=4096M
-          EOF
-
-      - name: Launch Emulator, Record 3 Minutes, and Clean Exit
-        run: |
-          # 1. Start Xvfb virtual display
-          Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
-          export DISPLAY=:99
-          sleep 2
-
-          # 2. Start 3-minute screen recording (-t 180)
-          echo "==> Starting 3-minute FFmpeg capture..."
-          ffmpeg -y \
-            -video_size 1280x1024 \
-            -framerate 30 \
-            -f x11grab \
-            -i :99.0 \
-            -t 180 \
-            -c:v libx264 \
-            -preset ultrafast \
-            -pix_fmt yuv420p \
-            emulator_session.mp4 > /tmp/ffmpeg.log 2>&1 &
-          FFMPEG_PID=$!
-
-          # 3. Launch Android 34 Emulator with KVM
-          echo "==> Launching Android 34 Emulator with KVM..."
-          emulator \
-            -avd test_emulator \
-            -accel on \
-            -gpu swiftshader_indirect \
-            -no-audio \
-            -no-boot-anim \
-            -no-snapshot \
-            -netfast \
-            -memory 3072 \
-            -cores 2 \
-            -camera-back none \
-            -camera-front none > /dev/null 2>&1 &
-
-          # 4. Wait for ADB connection
-          echo "==> Connecting to ADB..."
-          timeout 90 adb wait-for-device || echo "ADB wait reached limit, polling status..."
-
-          # 5. Poll for boot completion
-          echo "==> Polling boot status..."
-          for i in {1..75}; do
-            BOOT_STATUS=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            if [ "$BOOT_STATUS" = "1" ]; then
-              echo "==> Android 34 booted successfully in ~$((i * 2))s!"
-              break
-            fi
-            sleep 2
-          done
-
-          # 6. Device interactions
-          adb shell input keyevent 82 || true
-          sleep 2
-          adb shell am start -a android.intent.action.VIEW -d "https://www.google.com" || true
-
-          # 7. Wait for 3-minute recording to finalize MP4 file
-          echo "==> Waiting for 3-minute recording to complete..."
-          wait $FFMPEG_PID || true
-          echo "==> Video capture complete."
-
-          # 8. Clean up all background processes
-          echo "==> Cleaning up background processes..."
-          adb kill-server || true
-          pkill -9 -f qemu-system || true
-          pkill -9 -f emulator || true
-          pkill -9 -f Xvfb || true
-          pkill -9 -f ffmpeg || true
-          echo "==> Done."
-
-      - name: Upload Video Recording Artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: android-34-session-video
-          path: emulator_session.mp4
-          if-no-files-found: error
-          
+  build:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Set up Java
+         uses: actions/setup-java@v6
+         with:
+            distribution: 'temurin'
+            java-version: '25'
+           
+       - name: running
+         run: |
+             git clone --depth 1 https://github.com/Kotlin/kotlinx.serialization.git
+             cd kotlinx.serialization
+             chmod +x gradlew 
+             ./gradlew build
