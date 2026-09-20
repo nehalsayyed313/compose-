@@ -1,18 +1,143 @@
-name: Build
+name: Build Open WebUI Capacitor APK
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 'Target repository (format: owner/repo)'
+        required: true
+        default: 'open-webui/open-webui'
+      ref:
+        description: 'Git branch, tag, or commit SHA'
+        required: true
+        default: 'main'
+      server_url:
+        description: 'Remote Open WebUI Server URL (e.g., https://chat.yourdomain.com). Leave empty to bundle offline static assets.'
+        required: false
+        default: ''
+      app_id:
+        description: 'Android App Package ID'
+        required: true
+        default: 'com.openwebui.app'
+      app_name:
+        description: 'Application Display Name'
+        required: true
+        default: 'Open WebUI'
 
 jobs:
-  build:
-     runs-on: ubuntu-latest
-     steps:
-       - name: Set up 
-         uses: actions/setup-python@v5
-         with:
-            python-version: '3.11'
-           
-       - name: running
-         run: |
-             git clone --depth 1 https://github.com/openai/openai-python.git
-             cd openai-python
-             pip install .
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Open WebUI Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install Open WebUI Dependencies
+        run: |
+          if [ -f .env.example ] && [ ! -f .env ]; then
+            cp .env.example .env
+          fi
+          npm install --force
+
+      - name: Build WebUI Frontend
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
+        run: |
+          npm run build
+
+      - name: Install Capacitor & Configure Project
+        env:
+          APP_ID: ${{ inputs.app_id }}
+          APP_NAME: ${{ inputs.app_name }}
+          SERVER_URL: ${{ inputs.server_url }}
+        run: |
+          # Install Capacitor CLI and Android runtime
+          npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest --save-dev --force
+
+          # Generate capacitor.config.json
+          node -e '
+          const fs = require("fs");
+          const config = {
+            appId: process.env.APP_ID,
+            appName: process.env.APP_NAME,
+            webDir: "build",
+            server: {
+              androidScheme: "https",
+              cleartext: true
+            }
+          };
+
+          const serverUrl = process.env.SERVER_URL ? process.env.SERVER_URL.trim() : "";
+          if (serverUrl !== "") {
+            config.server.url = serverUrl;
+          }
+
+          fs.writeFileSync("capacitor.config.json", JSON.stringify(config, null, 2));
+          console.log("Configured capacitor.config.json:\n", JSON.stringify(config, null, 2));
+          '
+
+      - name: Add Android Platform & Apply Permissions
+        run: |
+          npx cap add android
+
+          # Inject permissions and cleartext HTTP support for internal LAN setups
+          node -e '
+          const fs = require("fs");
+          const manifestPath = "android/app/src/main/AndroidManifest.xml";
+          let manifest = fs.readFileSync(manifestPath, "utf8");
+
+          const permissions = [
+            "android.permission.INTERNET",
+            "android.permission.RECORD_AUDIO",
+            "android.permission.MODIFY_AUDIO_SETTINGS",
+            "android.permission.CAMERA",
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.READ_MEDIA_IMAGES",
+            "android.permission.READ_MEDIA_AUDIO",
+            "android.permission.READ_MEDIA_VIDEO"
+          ];
+
+          for (const perm of permissions) {
+            if (!manifest.includes(perm)) {
+              manifest = manifest.replace("</manifest>", `    <uses-permission android:name="${perm}" />\n</manifest>`);
+            }
+          }
+
+          if (!manifest.includes("android:usesCleartextTraffic")) {
+            manifest = manifest.replace("<application", "<application android:usesCleartextTraffic=\"true\"");
+          }
+
+          fs.writeFileSync(manifestPath, manifest);
+          console.log("Updated AndroidManifest.xml permissions successfully.");
+          '
+
+          npx cap sync android
+
+      - name: Build APK via Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-webui-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          
