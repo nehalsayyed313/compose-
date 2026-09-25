@@ -1,4 +1,4 @@
-name: Build Webstudio for Termux PRoot Ubuntu
+name: Build Webstudio Native ARM64 (Termux PRoot)
 
 on:
   workflow_dispatch:
@@ -7,19 +7,11 @@ on:
         description: 'Node.js version'
         required: false
         default: '20'
-      pnpm_version:
-        description: 'pnpm version'
-        required: false
-        default: '9'
-      database_url:
-        description: 'Default DATABASE_URL (optional)'
-        required: false
-        default: 'file:./dev.db'
 
 jobs:
   build:
-    name: Build & Package (ARM64 Target)
-    runs-on: ubuntu-latest
+    name: Native ARM64 Build
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout repository
@@ -28,37 +20,30 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ inputs.pnpm_version }}
-          run_install: false
-
       - name: Setup Node.js ${{ inputs.node_version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
-          cache: 'pnpm'
 
-      - name: Configure cross-architecture dependencies
+      - name: Enable pnpm via Corepack
         run: |
-          # Instruct pnpm to pull linux-arm64 native binaries alongside x64
-          pnpm config set supportedArchitectures.os '["linux"]'
-          pnpm config set supportedArchitectures.cpu '["x64", "arm64"]'
+          corepack enable
+          corepack prepare pnpm@latest --activate
+          pnpm --version
 
-          # Prepare Prisma engines for ARM64 Ubuntu (OpenSSL 3.x)
-          echo "PRISMA_CLI_BINARY_TARGETS=native,linux-arm64-openssl-3.0.x" >> $GITHUB_ENV
+      - name: Increase Node build memory
+        run: |
           echo "NODE_OPTIONS=--max-old-space-size=6144" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Generate clients and build
+      - name: Generate Prisma clients & Build
         run: |
           pnpm exec prisma generate || true
           pnpm build
 
-      - name: Create launch script and package bundle
+      - name: Create launch script & bundle archive
         run: |
           cat << 'EOF' > start.sh
           #!/usr/bin/env bash
@@ -67,18 +52,17 @@ jobs:
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
           cd "$SCRIPT_DIR"
 
-          echo "[*] Initializing Webstudio in PRoot Distro Ubuntu (ARM64)..."
+          echo "[*] Launching Webstudio (ARM64 Native)..."
 
           if ! command -v node >/dev/null 2>&1; then
-            echo "[!] Node.js not detected in PRoot Ubuntu."
-            echo "    Run: apt update && apt install -y nodejs npm"
+            echo "[!] Node.js not found in PRoot. Install with: apt update && apt install -y nodejs"
             exit 1
           fi
 
           export NODE_ENV=production
           export HOST=${HOST:-0.0.0.0}
           export PORT=${PORT:-3000}
-          export DATABASE_URL=${DATABASE_URL:-"${DEFAULT_DB_URL:-file:./dev.db}"}
+          export DATABASE_URL=${DATABASE_URL:-file:./dev.db}
 
           corepack enable 2>/dev/null || true
 
@@ -96,12 +80,12 @@ jobs:
               --exclude='docs' \
               --exclude='fixtures' \
               --exclude='*.tsbuildinfo' \
-              -czf webstudio-termux-ubuntu-arm64.tar.gz .
+              -czf webstudio-arm64.tar.gz .
 
-      - name: Upload build artifact
+      - name: Upload ARM64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: webstudio-termux-ubuntu-arm64
-          path: webstudio-termux-ubuntu-arm64.tar.gz
+          path: webstudio-arm64.tar.gz
           retention-days: 7
           
