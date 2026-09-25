@@ -13,6 +13,10 @@ jobs:
     name: Native ARM64 Build
     runs-on: ubuntu-24.04-arm
 
+    # Declare NODE_OPTIONS here to bypass $GITHUB_ENV runner security restrictions
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,19 +35,27 @@ jobs:
           corepack prepare pnpm@latest --activate
           pnpm --version
 
-      - name: Increase Node build memory
+      - name: Run repo setup scripts (if present)
         run: |
-          echo "NODE_OPTIONS=--max-old-space-size=6144" >> $GITHUB_ENV
+          if [ -f "./submodules.sh" ]; then
+            bash ./submodules.sh || true
+          fi
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Generate Prisma clients & Build
+      - name: Build monorepo packages
         run: |
-          pnpm exec prisma generate || true
-          pnpm build
+          # Use --if-present so packages lacking a build script do not fail the build
+          if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)'; then
+            echo "[*] Running root build script..."
+            pnpm run build
+          else
+            echo "[*] Building all workspace packages with --if-present..."
+            pnpm -r --if-present run build
+          fi
 
-      - name: Create launch script & bundle archive
+      - name: Create launch script & package bundle
         run: |
           cat << 'EOF' > start.sh
           #!/usr/bin/env bash
@@ -55,21 +67,23 @@ jobs:
           echo "[*] Launching Webstudio (ARM64 Native)..."
 
           if ! command -v node >/dev/null 2>&1; then
-            echo "[!] Node.js not found in PRoot. Install with: apt update && apt install -y nodejs"
+            echo "[!] Node.js not found in PRoot. Run: apt update && apt install -y nodejs npm"
             exit 1
           fi
 
           export NODE_ENV=production
           export HOST=${HOST:-0.0.0.0}
           export PORT=${PORT:-3000}
-          export DATABASE_URL=${DATABASE_URL:-file:./dev.db}
 
           corepack enable 2>/dev/null || true
 
-          if command -v pnpm >/dev/null 2>&1; then
+          # Start via root if available, otherwise launch apps/builder
+          if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.start ? 0 : 1)' 2>/dev/null; then
             pnpm start
+          elif [ -d "apps/builder" ]; then
+            pnpm --filter @webstudio-is/builder start || pnpm --filter builder start
           else
-            npm run start
+            pnpm -r --if-present run start
           fi
           EOF
 
