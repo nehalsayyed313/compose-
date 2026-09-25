@@ -7,6 +7,10 @@ on:
         description: 'Node.js version'
         required: false
         default: '20'
+      pnpm_version:
+        description: 'pnpm version'
+        required: false
+        default: '9'
       database_url:
         description: 'Default DATABASE_URL (optional)'
         required: false
@@ -27,6 +31,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: ${{ inputs.pnpm_version }}
           run_install: false
 
       - name: Setup Node.js ${{ inputs.node_version }}
@@ -50,10 +55,7 @@ jobs:
 
       - name: Generate clients and build
         run: |
-          # Generate Prisma clients with ARM64 binary targets included
           pnpm exec prisma generate || true
-          
-          # Monorepo production build
           pnpm build
 
       - name: Create launch script and package bundle
@@ -67,7 +69,6 @@ jobs:
 
           echo "[*] Initializing Webstudio in PRoot Distro Ubuntu (ARM64)..."
 
-          # Verify Node.js is available
           if ! command -v node >/dev/null 2>&1; then
             echo "[!] Node.js not detected in PRoot Ubuntu."
             echo "    Run: apt update && apt install -y nodejs npm"
@@ -79,7 +80,6 @@ jobs:
           export PORT=${PORT:-3000}
           export DATABASE_URL=${DATABASE_URL:-"${DEFAULT_DB_URL:-file:./dev.db}"}
 
-          # Enable corepack for pnpm support if available
           corepack enable 2>/dev/null || true
 
           if command -v pnpm >/dev/null 2>&1; then
@@ -91,7 +91,6 @@ jobs:
 
           chmod +x start.sh
 
-          # Bundle project excluding unnecessary repo/test bloat
           tar --exclude='.git' \
               --exclude='.github' \
               --exclude='docs' \
@@ -105,3 +104,4 @@ jobs:
           name: webstudio-termux-ubuntu-arm64
           path: webstudio-termux-ubuntu-arm64.tar.gz
           retention-days: 7
+          
