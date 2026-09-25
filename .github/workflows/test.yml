@@ -13,7 +13,7 @@ jobs:
     name: Native ARM64 Build
     runs-on: ubuntu-24.04-arm
 
-    # Declare NODE_OPTIONS here to bypass $GITHUB_ENV runner security restrictions
+    # Job-level env bypasses GitHub's $GITHUB_ENV injection security blocks
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
 
@@ -46,12 +46,12 @@ jobs:
 
       - name: Build monorepo packages
         run: |
-          # Use --if-present so packages lacking a build script do not fail the build
-          if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)'; then
-            echo "[*] Running root build script..."
+          # Handles monorepo builds without failing on packages lacking build scripts
+          if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)' 2>/dev/null; then
+            echo "[*] Running root build..."
             pnpm run build
           else
-            echo "[*] Building all workspace packages with --if-present..."
+            echo "[*] Running recursive build with --if-present..."
             pnpm -r --if-present run build
           fi
 
@@ -77,7 +77,6 @@ jobs:
 
           corepack enable 2>/dev/null || true
 
-          # Start via root if available, otherwise launch apps/builder
           if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.start ? 0 : 1)' 2>/dev/null; then
             pnpm start
           elif [ -d "apps/builder" ]; then
@@ -89,12 +88,16 @@ jobs:
 
           chmod +x start.sh
 
+          # Write archive to /tmp to prevent tar from reading its own growing output file
           tar --exclude='.git' \
               --exclude='.github' \
               --exclude='docs' \
               --exclude='fixtures' \
               --exclude='*.tsbuildinfo' \
-              -czf webstudio-arm64.tar.gz .
+              --warning=no-file-changed \
+              -czf /tmp/webstudio-arm64.tar.gz .
+
+          mv /tmp/webstudio-arm64.tar.gz ./webstudio-arm64.tar.gz
 
       - name: Upload ARM64 Artifact
         uses: actions/upload-artifact@v4
