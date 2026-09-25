@@ -15,24 +15,23 @@ jobs:
 
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
-      DATABASE_URL: "file:./dev.db"
+      # Dummy PostgreSQL string to pass build-time schema validation
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/webstudio?schema=public"
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Webstudio repository
         uses: actions/checkout@v4
+        with:
+          repository: 'webstudio-is/webstudio'
+          fetch-depth: 1
 
-      - name: Ensure Webstudio source code is present
+      - name: Stub private submodule
         run: |
-          if [ ! -f "package.json" ]; then
-            echo "[*] package.json not found in repository. Fetching Webstudio source..."
-            git clone --depth 1 --recurse-submodules https://github.com/webstudio-is/webstudio.git /tmp/webstudio-src
-            shopt -s dotglob
-            cp -rf /tmp/webstudio-src/* .
-            rm -rf /tmp/webstudio-src
+          # Prevent build failure from missing internal animation submodule
+          mkdir -p packages/sdk-components-animation/private-src
+          if [ ! -f "packages/sdk-components-animation/private-src/index.ts" ]; then
+            echo "export default {};" > packages/sdk-components-animation/private-src/index.ts
           fi
-
-          echo "[*] Source verified. Current directory contents:"
-          ls -la
 
       - name: Setup Node.js ${{ inputs.node_version }}
         uses: actions/setup-node@v4
@@ -45,7 +44,7 @@ jobs:
           corepack prepare pnpm@9 --activate
           pnpm --version
 
-      - name: Run submodules setup (if present)
+      - name: Run repo submodules script (if non-blocking)
         run: |
           if [ -f "./submodules.sh" ]; then
             bash ./submodules.sh || true
@@ -54,12 +53,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build Webstudio
-        run: |
-          echo "[*] Building Webstudio packages..."
-          pnpm run build
+      - name: Build Webstudio packages
+        run: pnpm run build
 
-      - name: Create launch script & package archive
+      - name: Create launch script & package bundle
         run: |
           cat << 'EOF' > start.sh
           #!/usr/bin/env bash
@@ -78,16 +75,21 @@ jobs:
           export NODE_ENV=production
           export HOST=${HOST:-0.0.0.0}
           export PORT=${PORT:-3000}
-          export DATABASE_URL=${DATABASE_URL:-file:./dev.db}
+          export DATABASE_URL=${DATABASE_URL:-"postgresql://postgres:postgres@localhost:5432/webstudio?schema=public"}
 
           corepack enable 2>/dev/null || true
 
-          if command -v pnpm >/dev/null 2>&1; then
-            pnpm start || pnpm run start
-          elif [ -d "apps/builder" ]; then
-            cd apps/builder && npm start
+          if [ -d "apps/builder" ]; then
+            cd apps/builder
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm start || pnpm run start
+            else
+              npm start
+            fi
+          elif node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.start ? 0 : 1)' 2>/dev/null; then
+            pnpm start
           else
-            npm start
+            pnpm run -r --if-present start
           fi
           EOF
 
@@ -104,7 +106,7 @@ jobs:
 
           mv /tmp/webstudio-arm64.tar.gz ./webstudio-arm64.tar.gz
 
-          echo "=== Archive Ready ==="
+          echo "=== Bundle Size ==="
           ls -lh webstudio-arm64.tar.gz
 
       - name: Upload ARM64 Artifact
