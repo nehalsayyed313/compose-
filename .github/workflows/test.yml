@@ -13,7 +13,6 @@ jobs:
     name: Native ARM64 Build
     runs-on: ubuntu-24.04-arm
 
-    # Job-level env bypasses GitHub's $GITHUB_ENV injection security blocks
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
 
@@ -29,30 +28,40 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
 
-      - name: Enable pnpm via Corepack
+      - name: Enable pnpm 9 via Corepack
         run: |
           corepack enable
-          corepack prepare pnpm@latest --activate
+          # Pin to pnpm 9 to match Webstudio workspace lockfile schema
+          corepack prepare pnpm@9 --activate
           pnpm --version
 
-      - name: Run repo setup scripts (if present)
+      - name: Inspect workspace scripts
         run: |
-          if [ -f "./submodules.sh" ]; then
-            bash ./submodules.sh || true
+          echo "=== Root package.json scripts ==="
+          node -e 'const pkg = require("./package.json"); console.log(pkg.scripts || "None");'
+          if [ -f "apps/builder/package.json" ]; then
+            echo "=== apps/builder scripts ==="
+            node -e 'const pkg = require("./apps/builder/package.json"); console.log(pkg.scripts || "None");'
           fi
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Build monorepo packages
         run: |
-          # Handles monorepo builds without failing on packages lacking build scripts
-          if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.build ? 0 : 1)' 2>/dev/null; then
-            echo "[*] Running root build..."
-            pnpm run build
-          else
-            echo "[*] Running recursive build with --if-present..."
-            pnpm -r --if-present run build
+          pnpm install --no-frozen-lockfile
+          
+          # Assert node_modules exists
+          if [ ! -d "node_modules" ]; then
+            echo "ERROR: node_modules was not created!"
+            exit 1
+          fi
+
+      - name: Build monorepo packages & builder app
+        run: |
+          echo "[*] Step 1: Building workspace packages in topological order..."
+          pnpm run -r --if-present build
+
+          echo "[*] Step 2: Building builder app..."
+          if [ -d "apps/builder" ]; then
+            pnpm --filter @webstudio-is/builder run build || pnpm --filter builder run build || (cd apps/builder && pnpm run build)
           fi
 
       - name: Create launch script & package bundle
@@ -77,18 +86,23 @@ jobs:
 
           corepack enable 2>/dev/null || true
 
-          if node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.start ? 0 : 1)' 2>/dev/null; then
+          if [ -d "apps/builder" ]; then
+            cd apps/builder
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm start || pnpm run start
+            else
+              npm start
+            fi
+          elif node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.start ? 0 : 1)' 2>/dev/null; then
             pnpm start
-          elif [ -d "apps/builder" ]; then
-            pnpm --filter @webstudio-is/builder start || pnpm --filter builder start
           else
-            pnpm -r --if-present run start
+            pnpm run -r --if-present start
           fi
           EOF
 
           chmod +x start.sh
 
-          # Write archive to /tmp to prevent tar from reading its own growing output file
+          echo "[*] Packaging archive..."
           tar --exclude='.git' \
               --exclude='.github' \
               --exclude='docs' \
@@ -98,6 +112,9 @@ jobs:
               -czf /tmp/webstudio-arm64.tar.gz .
 
           mv /tmp/webstudio-arm64.tar.gz ./webstudio-arm64.tar.gz
+
+          echo "=== Bundle Size ==="
+          ls -lh webstudio-arm64.tar.gz
 
       - name: Upload ARM64 Artifact
         uses: actions/upload-artifact@v4
