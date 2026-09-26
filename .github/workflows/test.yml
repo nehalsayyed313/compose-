@@ -11,8 +11,12 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: running 
-        run: java --version 
+      - name: Set up JDK 
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin' # Options include 'temurin', 'zulu', 'corretto', etc.
+          java-version: '25'
 
-      
-          
+      - name: running 
+        run: java --version
+        
