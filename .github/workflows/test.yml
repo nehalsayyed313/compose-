@@ -1,24 +1,18 @@
-name: Native Fedora CI
+name: build
 
 on:
   workflow_dispatch: 
 
 jobs:
   fedora-test:
-    runs-on: ubuntu-latest
-    container:
-      image: fedora:latest
+    runs-on: windows-latest
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Verify Fedora Version
-        run: cat /etc/fedora-release
+      - name: running 
+        run: java --version 
 
-      - name: Install dependencies and test
-        run: |
-          dnf -y update
-          dnf -y install dnf-plugins-core gcc-c++ make git
-          rpm --eval "%{fedora}"
+      
           
