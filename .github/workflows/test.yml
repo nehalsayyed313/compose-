@@ -4,22 +4,17 @@ on:
   workflow_dispatch: 
 
 jobs:
-  fedora-test:
-    runs-on: windows-latest
+  test:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 11
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '11' # Best LTS version supported by Gradle 6.7x
-
+      
       - name: Running build
         run: | 
-          git clone --depth 1 https://github.com/hvdwolf/jExifToolGUI
-          cd jExifToolGUI
-          ./gradlew build
+          git clone --depth 1 https://github.com/Appliberated/HelloWorldSelfAware.git
+          cd HelloWorldSelfAware
+          ./gradlew assembleDebug
           
