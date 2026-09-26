@@ -15,8 +15,11 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin' # Options include 'temurin', 'zulu', 'corretto', etc.
-          java-version: '25'
+          java-version: '8'
 
       - name: running 
-        run: java --version
+        run: | 
+            git clone --depth https://github.com/hvdwolf/jExifToolGUI.git
+            cd jExifToolGUI
+            gradlew build
         
