@@ -1,129 +1,24 @@
-name: Build Webstudio Native ARM64 (Termux PRoot)
+name: Native Fedora CI
 
 on:
-  workflow_dispatch:
-    inputs:
-      node_version:
-        description: 'Node.js version'
-        required: false
-        default: '20'
+  workflow_dispatch: 
 
 jobs:
-  build:
-    name: Native ARM64 Build
-    runs-on: ubuntu-24.04-arm
-
-    env:
-      NODE_OPTIONS: "--max-old-space-size=8192"
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/webstudio?schema=public"
+  fedora-test:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
 
     steps:
-      - name: Checkout Webstudio repository
+      - name: Check out code
         uses: actions/checkout@v4
-        with:
-          repository: 'webstudio-is/webstudio'
-          fetch-depth: 1
 
-      - name: Setup Node.js ${{ inputs.node_version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node_version }}
+      - name: Verify Fedora Version
+        run: cat /etc/fedora-release
 
-      - name: Enable Corepack & pnpm
+      - name: Install dependencies and test
         run: |
-          corepack enable
-          corepack prepare pnpm@9 --activate
-          pnpm --version
-
-      - name: Stub private submodule with Proxy export
-        run: |
-          mkdir -p packages/sdk-components-animation/private-src
-          # Wildcard Proxy export prevents Rollup from failing on missing named exports
-          cat << 'EOF' > packages/sdk-components-animation/private-src/index.ts
-          const stub: any = new Proxy({}, { get: () => () => null });
-          export default stub;
-          export const {
-            Animation,
-            AnimationTrigger,
-            AnimationBox,
-            keyframes
-          } = stub;
-          EOF
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Pre-build packages & generate clients
-        run: |
-          # Generate Prisma / database clients if packages exist
-          pnpm -r --filter "*prisma*" --if-present run build || true
-          pnpm -r --filter "*prisma*" exec prisma generate || true
-
-      - name: Build Webstudio packages (with clean error capture)
-        run: |
-          # Pipe output to log file to avoid terminal truncation on failure
-          if ! pnpm run build 2>&1 | tee build.log; then
-            echo "=========================================="
-            echo "           BUILD FAILED: ROOT CAUSE       "
-            echo "=========================================="
-            # Print lines around the actual Rollup / Vite error, skipping long array dumps
-            grep -E -B 2 -A 8 "(RollupError|Error:|SyntaxError|FAILED|Could not resolve)" build.log | head -n 30 || cat build.log | tail -n 50
-            exit 1
-          fi
-
-      - name: Create launch script & package bundle
-        run: |
-          cat << 'EOF' > start.sh
-          #!/usr/bin/env bash
-          set -e
-
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-          cd "$SCRIPT_DIR"
-
-          echo "[*] Launching Webstudio (ARM64 Native)..."
-
-          if ! command -v node >/dev/null 2>&1; then
-            echo "[!] Node.js not found in PRoot. Run: apt update && apt install -y nodejs npm"
-            exit 1
-          fi
-
-          export NODE_ENV=production
-          export HOST=${HOST:-0.0.0.0}
-          export PORT=${PORT:-3000}
-          export DATABASE_URL=${DATABASE_URL:-"postgresql://postgres:postgres@localhost:5432/webstudio?schema=public"}
-
-          corepack enable 2>/dev/null || true
-
-          if [ -d "apps/builder" ]; then
-            cd apps/builder
-            if command -v pnpm >/dev/null 2>&1; then
-              pnpm start || pnpm run start
-            else
-              npm start
-            fi
-          elif node -e 'const pkg = require("./package.json"); process.exit(pkg.scripts && pkg.scripts.start ? 0 : 1)' 2>/dev/null; then
-            pnpm start
-          else
-            pnpm run -r --if-present start
-          fi
-          EOF
-
-          chmod +x start.sh
-
-          tar --exclude='.git' \
-              --exclude='.github' \
-              --exclude='docs' \
-              --exclude='fixtures' \
-              --exclude='*.tsbuildinfo' \
-              --warning=no-file-changed \
-              -czf /tmp/webstudio-arm64.tar.gz .
-
-          mv /tmp/webstudio-arm64.tar.gz ./webstudio-arm64.tar.gz
-
-      - name: Upload ARM64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: webstudio-termux-ubuntu-arm64
-          path: webstudio-arm64.tar.gz
-          retention-days: 7
+          dnf -y update
+          dnf -y install dnf-plugins-core gcc-c++ make git
+          rpm --eval "%{fedora}"
           
