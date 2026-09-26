@@ -19,7 +19,7 @@ jobs:
 
       - name: Running build
         run: | 
-          git clone --depth 1 https://github.com
+          git clone --depth 1 https://github.com/hvdwolf/jExifToolGUI
           cd jExifToolGUI
           ./gradlew build
           
