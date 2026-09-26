@@ -4,22 +4,22 @@ on:
   workflow_dispatch: 
 
 jobs:
-  test:
+  fedora-test:
     runs-on: windows-latest
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 
+      - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # Upgraded from '8' to support modern Gradle configuration
+          java-version: '11' # Best LTS version supported by Gradle 6.7x
 
       - name: Running build
         run: | 
-          git clone --depth 1 https://github.com/hvdwolf/jExifToolGUI.git
+          git clone --depth 1 https://github.com
           cd jExifToolGUI
           ./gradlew build
           
