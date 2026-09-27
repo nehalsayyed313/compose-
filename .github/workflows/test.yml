@@ -11,12 +11,17 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Set up Java JDK
+        uses: actions/setup-java@v6
+        with:
+           distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
+           java-version: '21'     
+
       
       - name: Running build
         run: |
              java --version
-             cargo --version
-             rustc --version
+             
       
 
 
