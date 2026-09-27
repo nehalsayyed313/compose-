@@ -5,22 +5,19 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Java JDK
-        uses: actions/setup-java@v6
-        with:
-           distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
-           java-version: '21'     
+        uses: actions/checkout@v4    
 
       
       - name: Running build
         run: |
-             java --version
+             git clone --depth 1 https://github.com/vinchamp77/Demo_CleanEmptyCompose.git
+             cd Demo_CleanEmptyCompose
+             chmod +x gradlew
+             ./gradlew assembleDebug --no-daemon 
              
       
 
