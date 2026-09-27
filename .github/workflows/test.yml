@@ -14,8 +14,9 @@ jobs:
       
       - name: Running build
         run: |
-             cargo --version
-             rustc --version
+             git clone --depth 1 https://github.com/vinchamp77/Demo_CleanEmptyCompose.git
+             cd Demo_CleanEmptyCompose
+             ./gradlew assembleDebug
 
 
           
