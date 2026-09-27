@@ -14,13 +14,13 @@ jobs:
       
       - name: Running build
         run: | 
-          git clone --depth 1 https://github.com/termux/termux-api.git
-          cd termux-api
+          git clone --depth 1 https://github.com/deniscerri/ytdlnis.git
+          cd ytdlnis
           ./gradlew assembleRelease --no-daemon 
       
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: my-artifact-name
-          path: termux-api/app/build/outputs
+          path: ytdlnis/app/build/outputs
     
