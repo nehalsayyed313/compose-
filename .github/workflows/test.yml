@@ -5,7 +5,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     steps:
       - name: Check out code
@@ -13,12 +13,12 @@ jobs:
 
       
       - name: Running build
-        run: | 
-          git clone --depth 1 https://github.com/deniscerri/ytdlnis.git
-          cd ytdlnis
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon 
-      
+        run: |
+             sudo apt update -y && sudo apt install neofetch -y
+             neofetch
+
+
+          
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
