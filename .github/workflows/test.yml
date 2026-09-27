@@ -5,8 +5,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-slim
-    container: rust:latest 
+    runs-on: windows-latest
 
     steps:
       - name: Check out code
