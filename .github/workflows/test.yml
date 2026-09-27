@@ -6,6 +6,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-slim
+    container: rust:latest 
 
     steps:
       - name: Check out code
@@ -14,14 +15,9 @@ jobs:
       
       - name: Running build
         run: |
-             sudo apt update -y && sudo apt install neofetch -y
-             neofetch
+             cargo --version
+             rustc --version
 
 
           
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-artifact-name
-          path: ytdlnis/app/build/outputs
-    
+      
