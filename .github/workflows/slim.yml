@@ -7,30 +7,12 @@ jobs:
   running:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      
 
-      - name: Accept Android SDK & NDK Licenses
+      - name: running 
         run: |
-          yes 2>/dev/null | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-
-      - name: Clone Target Repository
-        run: |
-          git clone --depth 1 --recurse-submodules https://codeberg.org/universish/ZeeArchiver-Android-Mirror.git app-source
-
-      - name: Build Application
-        working-directory: app-source
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZeeArchiver-debug-apk
-          path: app-source/**/build/outputs/apk/**/*.apk
-          if-no-files-found: error
+             git clone --recursive https://codeberg.org/jlmakiola/calendula.git
+             cd calendula 
+             chmod +x gradlew
+             ./gradlew assembleDebug --no-daemon 
           
