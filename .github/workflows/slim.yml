@@ -8,7 +8,7 @@ jobs:
     steps:
       
       - run: |
-            git clone --depth 1 https://codeberg.org/forrestguice/Suntimes.git
-            cd Suntimes 
+            git clone --depth 1 https://codeberg.org/universish/ZeeArchiver-Android-Mirror.git
+            cd ZeeArchiver-Android-Mirror
             chmod +x gradlew
             ./gradlew assembleDebug --no-daemon 
