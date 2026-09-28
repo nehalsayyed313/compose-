@@ -8,5 +8,7 @@ jobs:
     steps:
       - run: |
             sudo apt update -y
-            sudo apt install neofetch -y
+            sudo apt install neofetch cargo rustc -y
             neofetch
+            cargo --version
+            rustc --version
