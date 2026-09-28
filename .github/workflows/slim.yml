@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   running:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     steps:
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
