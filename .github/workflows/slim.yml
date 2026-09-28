@@ -6,9 +6,8 @@ jobs:
   running:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        
+      
       - run: |
-            cargo install stable-diffusion-cli
-            stable-diffusion --help
+            git clone --depth 1 https://codeberg.org/kznleaf/pacxfer.git
+            cd pacxfer
+            make -j 4
