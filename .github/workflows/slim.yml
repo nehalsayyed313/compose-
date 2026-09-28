@@ -6,9 +6,29 @@ jobs:
   running:
     runs-on: ubuntu-latest
     steps:
-      
-      - run: |
-            git clone --depth 1 https://codeberg.org/universish/ZeeArchiver-Android-Mirror.git
-            cd ZeeArchiver-Android-Mirror
-            chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon 
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager --install "ndk;27.1.10909125"
+
+      - name: Clone Target Repository
+        run: |
+          git clone --depth 1 https://codeberg.org/universish/ZeeArchiver-Android-Mirror.git
+          
+      - name: Build Application
+        run: |
+          cd ZeeArchiver-Android-Mirror
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          
