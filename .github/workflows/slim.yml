@@ -12,4 +12,5 @@ jobs:
       - run: |
             cargo --version
             rustc --version
-            cargo test --verbose
+            cargo install cargo-ai
+            cargo-ai
