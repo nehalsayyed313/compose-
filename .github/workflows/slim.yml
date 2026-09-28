@@ -10,7 +10,5 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         
       - run: |
-            cargo --version
-            rustc --version
-            cargo install cargo-ai
-            cargo-ai
+            cargo install stable-diffusion-cli
+            stable-diffusion --help
