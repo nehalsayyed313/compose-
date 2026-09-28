@@ -15,4 +15,10 @@ jobs:
              cd calendula 
              chmod +x gradlew
              ./gradlew assembleDebug --no-daemon 
-          
+      
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-artifact-name
+          path: calendula/app/build/outputs 
+    
