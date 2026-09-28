@@ -8,6 +8,6 @@ jobs:
     steps:
       
       - run: |
-            git clone --depth 1 https://codeberg.org/kznleaf/pacxfer.git
-            cd pacxfer
+            git clone --depth 1 https://codeberg.org/kipi/kipiweb.git
+            cd kipiweb
             make -j 4
