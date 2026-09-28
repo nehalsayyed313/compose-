@@ -11,4 +11,4 @@ jobs:
             git clone --depth 1 https://codeberg.org/OpenVK/mobile-android-legacy.git
             cd mobile-android-legacy
             chmod +x gradlew
-            ./grdalew assembleDebug --no-daemon 
+            ./gradlew assembleDebug --no-daemon 
