@@ -14,8 +14,8 @@ jobs:
       
       - name: Running build
         run: |
-             git clone --depth 1 https://github.com/vinchamp77/Demo_CleanEmptyCompose.git
-             cd Demo_CleanEmptyCompose
+             git clone --depth 1 https://github.com/zhanghai/MaterialFiles.git
+             cd MaterialFiles
              chmod +x gradlew
              ./gradlew assembleDebug --no-daemon 
              
