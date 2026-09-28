@@ -6,9 +6,10 @@ jobs:
   running:
     runs-on: ubuntu-slim
     steps:
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        
       - run: |
-            sudo apt update -y
-            sudo apt install neofetch cargo rustc -y
-            neofetch
             cargo --version
             rustc --version
+            cargo test --verbose
