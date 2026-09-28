@@ -8,7 +8,7 @@ jobs:
     steps:
       
       - run: |
-            git clone --depth 1 https://codeberg.org/OpenVK/mobile-android-legacy.git
-            cd mobile-android-legacy
+            git clone --depth 1 https://codeberg.org/heiwiper/capture.git
+            cd capture 
             chmod +x gradlew
             ./gradlew assembleDebug --no-daemon 
