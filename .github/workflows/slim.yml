@@ -15,7 +15,7 @@ jobs:
 
       - name: running 
         run: |
-             git clone --depth 1 --recursive hhttps://codeberg.org/xolatgames/Dima-Defense.git
+             git clone --depth 1 --recursive https://codeberg.org/xolatgames/Dima-Defense.git
              cd Dima-Defense 
              chmod +x gradlew
              ./gradlew assembleDebug --no-daemon 
