@@ -7,12 +7,16 @@ jobs:
   running:
     runs-on: ubuntu-latest
     steps:
-      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+           distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
+           java-version: '25'
 
       - name: running 
         run: |
-             git clone --recursive https://codeberg.org/jlmakiola/calendula.git
-             cd calendula 
+             git clone --depth 1 --recursive https://codeberg.org/PhonographPlus/Phonograph_Plus.git
+             cd Phonograph_Plus 
              chmod +x gradlew
              ./gradlew assembleDebug --no-daemon 
       
@@ -20,5 +24,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: my-artifact-name
-          path: calendula/app/build/outputs 
+          path: Phonograph_Plus/app/build/outputs 
     
