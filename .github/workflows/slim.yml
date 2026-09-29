@@ -15,14 +15,6 @@ jobs:
 
       - name: running 
         run: |
-             git clone --depth 1 --recursive https://codeberg.org/RythonDev/unit-converter-app.git
-             cd unit-converter-app 
-             chmod +x gradlew
-             ./gradlew assembleDebug --no-daemon 
-    
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-artifact-name
-          path: unit-converter-app/app/build/outputs 
-    
+              git clone --depth 1 https://codeberg.org/IBlameYou/lumi.git
+              cd lumi
+              cargo build --release
