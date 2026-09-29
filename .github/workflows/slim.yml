@@ -18,7 +18,7 @@ jobs:
              git clone --depth 1 --recursive https://codeberg.org/xolatgames/Dima-Defense.git
              cd Dima-Defense 
              chmod +x gradlew
-             ./gradlew assembleDebug --no-daemon 
+             ./gradlew android:build --no-daemon 
     
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
