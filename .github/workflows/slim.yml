@@ -15,14 +15,14 @@ jobs:
 
       - name: running 
         run: |
-             git clone --depth 1 --recursive https://codeberg.org/PhonographPlus/Phonograph_Plus.git
-             cd Phonograph_Plus 
+             git clone --depth 1 --recursive hhttps://codeberg.org/xolatgames/Dima-Defense.git
+             cd Dima-Defense 
              chmod +x gradlew
              ./gradlew assembleDebug --no-daemon 
-      
+    
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: my-artifact-name
-          path: Phonograph_Plus/app/build/outputs 
+          path: Dima-Defense/app/build/outputs 
     
