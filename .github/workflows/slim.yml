@@ -15,7 +15,7 @@ jobs:
       - name: running 
         run: |
               git clone --depth 1 https://codeberg.org/0thElement/kldnimbus.git
-              cd cargry
+              cd kldnimbus
               cargo build --release
               cargo --version
               rustc --version
