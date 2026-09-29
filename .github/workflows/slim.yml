@@ -14,7 +14,7 @@ jobs:
 
       - name: running 
         run: |
-              git clone --depth 1 https://codeberg.org/cargry-lang/cargry.git
+              git clone --depth 1 https://codeberg.org/0thElement/kldnimbus.git
               cd cargry
               cargo build --release
               cargo --version
