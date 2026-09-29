@@ -7,15 +7,23 @@ jobs:
   running:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup Rust Nightly
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
+          java-version: '17'
     
 
       - name: running 
         run: |
-              git clone --depth 1 https://codeberg.org/0thElement/kldnimbus.git
-              cd kldnimbus
-              cargo build --release
-              cargo --version
-              rustc --version
+              git clone --depth 1 https://codeberg.org/thea_mp5/Countr.git
+              cd Countr
+              chmod +x gradlew
+              ./gradlew assembleDebug --no-daemon 
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-artifact-name
+          path: Countr/app/build/outputs
+    
