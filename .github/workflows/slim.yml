@@ -13,8 +13,14 @@ jobs:
 
       - name: Install required system packages
         run: |
-          git clone --depth 1 https://codeberg.org/sbute/restaurant.git
-          cd restaurant
-          npm install -g pnpm
-          pnpm install 
+          git clone --depth 1 https://codeberg.org/KlikBit/rcmanager-frontend.git
+          cd rcmanager-frontend
+          npm install 
           npm run build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-artifact-name
+          path: rcmanager-frontend/out
+    
