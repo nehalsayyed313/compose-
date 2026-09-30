@@ -16,11 +16,9 @@ jobs:
 
       - name: running 
         run: |
-              git clone --depth 1 https://codeberg.org/thea_mp5/Countr.git
-              cd Countr
-              chmod +x gradlew
-              ./gradlew assembleDebug --no-daemon 
-
+              git clone --depth 1 https://codeberg.org/eltrac/weepinbell.git
+              cd weepinbell
+              docker build -t app .
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
