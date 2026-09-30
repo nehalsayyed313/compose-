@@ -14,6 +14,7 @@ jobs:
       - name: Install required system packages
         run: |
           git clone --depth 1 https://codeberg.org/sbute/restaurant.git
-          cd restaurant 
-          npm install 
+          cd restaurant
+          npm install -g pnpm
+          pnpm install 
           npm run build
