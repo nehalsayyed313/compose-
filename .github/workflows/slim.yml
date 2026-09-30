@@ -13,7 +13,7 @@ jobs:
       - name: Clone repository
         run: |
           sudo apt update -y
-          sudo apt-get install libsfml-dev -y
+          sudo apt-get install libsfml-dev libudev-dev pkg-config -y
           git clone --depth 1 https://github.com/johnBuffer/VerletSFML-Multithread.git
           cd VerletSFML-Multithread
           mkdir build 
