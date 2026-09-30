@@ -23,4 +23,5 @@ jobs:
         with:
           name: my-artifact-name
           path: rcmanager-frontend/.next/server/app
+          include-hidden-files: true
     
