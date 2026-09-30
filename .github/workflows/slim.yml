@@ -7,17 +7,14 @@ jobs:
   running:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin' # Options include: temurin, zulu, adopt, microsoft, corretto, etc.
-          java-version: '17'
-    
+      
+      - name: setup ocaml   
+        uses: ocaml/setup-ocaml@v3
 
       - name: running 
         run: |
-              git clone --depth 1 https://codeberg.org/slowy07/meiDB.git
-              cd meiDB
+              git clone --depth 1 https://codeberg.org/eris/kapla.git
+              cd kapla
               make -j 4
 
               
