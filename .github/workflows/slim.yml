@@ -22,7 +22,7 @@ jobs:
 
       - name: Clone repository
         run: |
-          git clone --depth 1 --recurse-submodules https://codeberg.org/ironclad/ironclad.git app-source
+          git clone --depth 1 --recurse-submodules https://codeberg.org/Ironclad/Ironclad.git app-source
 
       - name: Bootstrap, configure, and compile
         working-directory: app-source
