@@ -8,21 +8,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       
-      - name: setup ocaml   
-        uses: ocaml/setup-ocaml@v3
-        with:
-           ocaml-compiler: "5.2"
+      
 
       - name: running 
         run: |
-              git clone --depth 1 https://codeberg.org/eris/kapla.git
-              cd kapla
-              make -j 4
+              git clone --depth 1 https://codeberg.org/mattclarke/filewriter.git
+              cd filewriter
+              cargo build --release
 
               
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: my-artifact-name
-          path: Countr/app/build/outputs
+          path: filewriter/target
     
