@@ -1,4 +1,4 @@
-name: Build Ironclad
+name: Build 
 
 on:
   workflow_dispatch:
@@ -8,34 +8,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            gnat \
-            gprbuild \
-            highlight \
-            make \
-            texinfo
+      
 
       - name: Clone repository
         run: |
-          git clone --depth 1 --recurse-submodules https://codeberg.org/Ironclad/Ironclad.git app-source
-
-      - name: Bootstrap, configure, and compile
-        working-directory: app-source
-        run: |
-          ./bootstrap
-          ./configure --prefix="$(pwd)/dist"
-          make
-          make install
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ironclad-binaries
-          path: app-source/dist
-          if-no-files-found: error
-          
+          git clone --depth 1 https://github.com/SFML/SFML.git
+          cd SFML
+          mkdir build 
+          cd build 
+          cmake ..
+          make install -j 4
+      
