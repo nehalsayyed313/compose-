@@ -22,6 +22,16 @@ jobs:
           otp-version: '28'
           rebar3-version: 'latest'
 
+      - name: Configure Erlang NIF Include Paths
+        run: |
+          ERL_ROOT=$(erl -noshell -eval 'io:format("~s", [code:root_dir()]), halt().')
+          ERTS_INCLUDE=$(erl -noshell -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)]), halt().')
+          
+          # Export to standard C compiler search paths
+          echo "CPATH=${ERL_ROOT}/usr/include:${ERTS_INCLUDE}" >> $GITHUB_ENV
+          echo "C_INCLUDE_PATH=${ERL_ROOT}/usr/include:${ERTS_INCLUDE}" >> $GITHUB_ENV
+          echo "ERL_EI_INCLUDE_DIR=${ERTS_INCLUDE}" >> $GITHUB_ENV
+
       - name: Manually Clone Repository
         run: |
           git clone --depth 1 https://codeberg.org/h4rl/errm-SQLite.git app-source
@@ -30,3 +40,4 @@ jobs:
         working-directory: app-source
         run: |
           rebar3 compile
+          
