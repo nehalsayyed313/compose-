@@ -1,4 +1,4 @@
-name: Build errm-SQLite
+name: Build Ironclad
 
 on:
   workflow_dispatch:
@@ -8,36 +8,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install system dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential gcc libsqlite3-dev sqlite3
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            gnat \
+            gprbuild \
+            highlight \
+            make \
+            texinfo
 
-      - name: Set up Just command runner
-        uses: extractions/setup-just@v2
-
-      - name: Set up Erlang/OTP 28 and Rebar3
-        uses: erlef/setup-beam@v1
-        with:
-          otp-version: '28'
-          rebar3-version: 'latest'
-
-      - name: Configure Erlang NIF Include Paths
+      - name: Clone repository
         run: |
-          ERL_ROOT=$(erl -noshell -eval 'io:format("~s", [code:root_dir()]), halt().')
-          ERTS_INCLUDE=$(erl -noshell -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)]), halt().')
-          
-          # Export to standard C compiler search paths
-          echo "CPATH=${ERL_ROOT}/usr/include:${ERTS_INCLUDE}" >> $GITHUB_ENV
-          echo "C_INCLUDE_PATH=${ERL_ROOT}/usr/include:${ERTS_INCLUDE}" >> $GITHUB_ENV
-          echo "ERL_EI_INCLUDE_DIR=${ERTS_INCLUDE}" >> $GITHUB_ENV
+          git clone --depth 1 --recurse-submodules https://codeberg.org/Ironclad/Ironclad.git app-source
 
-      - name: Manually Clone Repository
-        run: |
-          git clone --depth 1 https://codeberg.org/h4rl/errm-SQLite.git app-source
-
-      - name: Build Application
+      - name: Bootstrap, configure, and compile
         working-directory: app-source
         run: |
-          rebar3 compile
+          ./bootstrap
+          ./configure --prefix="$(pwd)/dist"
+          make
+          make install
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ironclad-binaries
+          path: app-source/dist
+          if-no-files-found: error
           
