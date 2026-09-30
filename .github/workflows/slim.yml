@@ -12,6 +12,8 @@ jobs:
 
       - name: Clone repository
         run: |
+          sudo apt update -y
+          sudo apt install xorg -y
           git clone --depth 1 https://github.com/SFML/SFML.git
           cd SFML
           mkdir build 
