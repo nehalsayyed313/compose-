@@ -9,49 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout rust-on-android
-        uses: actions/checkout@v4
-        with:
-          repository: suve/rust-on-android
-
-      - name: Set up Java Development Kit
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      
 
       - name: Install required system packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bash curl gcc m4 make tar
-
-      - name: Set up Rust and target architectures
-        run: |
-          rustup default stable
-          rustup target add \
-            aarch64-linux-android \
-            armv7-linux-androideabi \
-            x86_64-linux-android \
-            i686-linux-android
-
-      - name: Set up Android NDK r21
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r21e
-          link-to-sdk: true
-
-      - name: Build APK with Make
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          make
-
-      - name: Upload Built APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust-on-android-apk
-          path: '**/*.apk'
-          if-no-files-found: error
-          
+          git clone --depth 1 https://codeberg.org/sbute/restaurant.git
+          cd restaurant 
+          npm install 
+          npm run build
