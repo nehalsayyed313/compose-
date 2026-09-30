@@ -13,22 +13,9 @@ jobs:
       - name: Clone repository
         run: |
           sudo apt update -y
-          sudo apt install \
-          build-essential \
-          cmake \
-          git \
-          libgl1-mesa-dev \
-          libegl1-mesa-dev \
-          libfreetype-dev \
-          libxrandr-dev \
-          libxcursor-dev \
-          libxi-dev \
-          libudev-dev \
-          libflac-dev \
-          libvorbis-dev -y
-  
-          git clone --depth 1 https://github.com/SFML/SFML.git
-          cd SFML
+          sudo apt-get install libsfml-dev -y
+          git clone --depth 1 https://github.com/johnBuffer/VerletSFML-Multithread.git
+          cd VerletSFML-Multithread
           mkdir build 
           cd build 
           cmake ..
