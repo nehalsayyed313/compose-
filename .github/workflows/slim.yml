@@ -10,10 +10,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Initialize Eco Action
-        run: |
-          chmod +x ./github_EPYC_7763_4_CPU_shared.sh
-          ./github_EPYC_7763_4_CPU_shared.sh
+      - name: Start Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: start-measurement
+
+      # Put any test, build, or compile steps you want to measure here
+
+      - name: Display Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v5
+        with:
+          task: display-results
         env:
           CO2_GRID_INTENSITY: 472
           
