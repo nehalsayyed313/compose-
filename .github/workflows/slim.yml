@@ -15,7 +15,9 @@ jobs:
         with:
           task: start-measurement
 
-      # Put any test, build, or compile steps you want to measure here
+      # Define the workload you want to measure (e.g., test, build, or sleep)
+      - name: Simulated Workload
+        run: sleep 5
 
       - name: Display Results
         uses: green-coding-solutions/eco-ci-energy-estimation@v5
