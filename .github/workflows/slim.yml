@@ -1,24 +1,19 @@
-# .github/workflows/build.yml
-name: Build Android APK
+name: CI Eco Action
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  eco-audit:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Initialize Eco CI Energy Estimation
-        uses: green-coding-solutions/eco-ci-energy-estimation@v5
-        with:
-          task: start-measurement
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Install required system packages
+      - name: Initialize Eco Action
         run: |
-          git clone --depth 1 https://codeberg.org/KlikBit/rcmanager-frontend.git
-          cd rcmanager-frontend
-          npm install 
-          npm run build
-
-      
+          chmod +x ./github_EPYC_7763_4_CPU_shared.sh
+          ./github_EPYC_7763_4_CPU_shared.sh
+        env:
+          CO2_GRID_INTENSITY: 472
+          
