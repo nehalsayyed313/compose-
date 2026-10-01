@@ -6,18 +6,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Clone repository
-        run: |
-          sudo apt update -y
-          sudo apt-get install libsfml-dev libudev-dev pkg-config -y
-          git clone --depth 1 https://github.com/johnBuffer/VerletSFML-Multithread.git
-          cd VerletSFML-Multithread
-          mkdir build 
-          cd build 
-          cmake ..
-          make install -j 4
-      
+      - name: Setup Emscripten toolchain
+        uses: emscripten-core/setup-emsdk@v15
+
+      - name: Verify installation
+        run: emcc -v
+        
