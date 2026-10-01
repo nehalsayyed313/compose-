@@ -14,5 +14,11 @@ jobs:
         uses: emscripten-core/setup-emsdk@v15
 
       - name: Verify installation
-        run: emcc -v
+        run: |
+            git clone --depth 1 https://codeberg.org/cryptool-org/openssl-webterm.git
+            cd openssl-webterm
+            npm install 
+            npm run build:openssl
+            npm run build 
+            ls
         
