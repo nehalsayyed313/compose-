@@ -10,13 +10,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Emscripten toolchain
-        uses: emscripten-core/setup-emsdk@v15
-
       - name: Verify installation
         run: |
-            git clone --depth 1 https://codeberg.org/yamlynn/astro.git
-            cd astro
-            make -j 4
-            ls
+            git clone --depth 1 https://codeberg.org/marvin1099/Clock.git
+            cd Clock
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon 
         
