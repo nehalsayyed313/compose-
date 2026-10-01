@@ -15,9 +15,8 @@ jobs:
 
       - name: Verify installation
         run: |
-            git clone --depth 1 https://codeberg.org/cryptool-org/wasm-webterm.git
-            cd wasm-webterm
-            npm install
-            npm run build 
+            git clone --depth 1 https://codeberg.org/yamlynn/astro.git
+            cd astro
+            make -j 4
             ls
         
