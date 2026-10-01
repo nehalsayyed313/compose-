@@ -15,10 +15,9 @@ jobs:
 
       - name: Verify installation
         run: |
-            git clone --depth 1 https://codeberg.org/cryptool-org/openssl-webterm.git
-            cd openssl-webterm
-            npm install 
-            npm run build:openssl
+            git clone --depth 1 https://codeberg.org/cryptool-org/wasm-webterm.git
+            cd wasm-webterm
+            npm install
             npm run build 
             ls
         
