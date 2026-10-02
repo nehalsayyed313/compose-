@@ -11,11 +11,14 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: "5.2"
-      
-      - name: Install build dependencies
+          dune-cache: true
+
+      - name: Install build dependencies and test
         run: |
           git clone --depth 1 https://codeberg.org/tjammer/schmu.git
           cd schmu
-          opam install . --deps-only --with-test
+          # -y prevents prompts; dune is included explicitly as a safety measure
+          opam install -y dune . --deps-only --with-test
           opam exec -- dune build
           opam exec -- dune runtest
+          
