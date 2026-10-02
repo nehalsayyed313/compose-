@@ -12,7 +12,7 @@ jobs:
 
       - name: Verify installation
         run: |
-            git clone --depth 1 https://codeberg.org/skyjake/lagrange.git
+            git clone --depth 1 --recursive https://codeberg.org/skyjake/lagrange.git
             cd lagrange
             mkdir build 
             cd build 
