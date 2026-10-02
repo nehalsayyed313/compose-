@@ -9,35 +9,5 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
-          sudo apt-get update -y
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential \
-            cmake \
-            pkg-config \
-            libsdl2-dev \
-            libssl-dev \
-            libpcre2-dev \
-            zlib1g-dev \
-            libunistring-dev \
-            libfribidi-dev \
-            libharfbuzz-dev \
-            libwebp-dev \
-            libmpg123-dev
-
-      - name: Clone and build Lagrange
-        run: |
-          git clone --depth 1 --recursive https://codeberg.org/skyjake/lagrange.git
-          cd lagrange
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_RESOURCE_EMBED=ON
-          cmake --build build -j$(nproc)
-          strip build/lagrange
-
-      - name: Upload Standalone Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: lagrange-linux-x86_64
-          path: lagrange/build/lagrange
-          if-no-files-found: error
-          
+          curl https://mise.run | sh
+          mise --version
