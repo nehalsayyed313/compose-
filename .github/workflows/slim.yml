@@ -9,5 +9,9 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
+          git clone --depth 1 https://codeberg.org/zigtoberfest/website.git
+          cd website
           curl https://mise.run | sh
-          mise 
+          mise trust && mise install   # install Node.js and pnpm
+          pnpm install
+          npm run build
