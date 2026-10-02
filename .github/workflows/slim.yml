@@ -7,13 +7,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Haskell (Stack)
+        uses: haskell-actions/setup@v2
         with:
-           python-version: '3.13'
+          stack-version: 'latest'
+          enable-stack: true
 
       - name: Install build dependencies and test
         run: |
-          git clone --depth 1 https://codeberg.org/slidge/slidge.git
-          cd slidge
-          pip install .
+          git clone --depth 1 https://github.com/mfussenegger/mkjson.git
+          cd mkjson
+          stack install
