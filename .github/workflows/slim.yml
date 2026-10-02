@@ -1,4 +1,4 @@
-name: Build 
+name: Build Lagrange
 
 on:
   workflow_dispatch:
@@ -7,27 +7,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: packages
+      - name: Install build dependencies
         run: |
-            sudo apt-get update -y
-            sudo apt-get install libunistring-dev -y
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            pkg-config \
+            libsdl2-dev \
+            libssl-dev \
+            libpcre2-dev \
+            zlib1g-dev \
+            libunistring-dev \
+            libfribidi-dev \
+            libharfbuzz-dev \
+            libwebp-dev \
+            libmpg123-dev
 
-      
-      - name: Verify installation
+      - name: Clone and build Lagrange
         run: |
-            git clone --depth 1 --recursive https://codeberg.org/skyjake/lagrange.git
-            cd lagrange
-            mkdir build 
-            cd build 
-            cmake ..
-            make -j 4
-            ls
-            
-      - name: Upload Build Artifact
+          git clone --depth 1 --recursive https://codeberg.org/skyjake/lagrange.git
+          cd lagrange
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_RESOURCE_EMBED=ON
+          cmake --build build -j$(nproc)
+          strip build/lagrange
+
+      - name: Upload Standalone Binary
         uses: actions/upload-artifact@v4
         with:
-          name: my-artifact-name
-          path: Clock/app/build/outputs
-    
+          name: lagrange-linux-x86_64
+          path: lagrange/build/lagrange
+          if-no-files-found: error
+          
