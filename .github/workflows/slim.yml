@@ -13,5 +13,6 @@ jobs:
           cd website
           curl https://mise.run | sh
           mise trust && mise install   # install Node.js and pnpm
+          npm i -g pnpm
           pnpm install
           npm run build
