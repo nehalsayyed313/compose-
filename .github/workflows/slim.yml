@@ -12,10 +12,13 @@ jobs:
 
       - name: Verify installation
         run: |
-            git clone --depth 1 https://codeberg.org/marvin1099/Clock.git
-            cd Clock
-            chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon 
+            git clone --depth 1 https://codeberg.org/skyjake/lagrange.git
+            cd lagrange
+            mkdir build 
+            cd build 
+            cmake ..
+            make -j 4
+            ls
             
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
