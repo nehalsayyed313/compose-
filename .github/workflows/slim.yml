@@ -9,7 +9,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: packages
+        run: |
+            sudo apt-get update -y
+            sudo apt-get install libunistring-dev -y
 
+      
       - name: Verify installation
         run: |
             git clone --depth 1 --recursive https://codeberg.org/skyjake/lagrange.git
