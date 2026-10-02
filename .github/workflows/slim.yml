@@ -7,18 +7,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up OCaml
-        uses: ocaml/setup-ocaml@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          ocaml-compiler: "5.2"
-          dune-cache: true
+           python-version: '3.12'
 
       - name: Install build dependencies and test
         run: |
-          git clone --depth 1 https://codeberg.org/tjammer/schmu.git
-          cd schmu
-          # -y prevents prompts; dune is included explicitly as a safety measure
-          opam install -y dune . --deps-only --with-test
-          opam exec -- dune build
-          opam exec -- dune runtest
-          
+          git clone --depth 1 https://codeberg.org/slidge/slidge.git
+          cd slidge
+          pip install .
