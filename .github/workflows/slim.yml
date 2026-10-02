@@ -1,4 +1,4 @@
-name: Build Lagrange
+name: learn and test
 
 on:
   workflow_dispatch:
@@ -11,7 +11,8 @@ jobs:
 
       - name: Install build dependencies and test
         run: |
-          git clone --depth 1 https://codeberg.org/tslocum/sriracha.git
-          cd sriracha
-          go build
+          git clone https://github.com/asciimoo/hister.git
+          cd hister
+          chmod +x manage.sh
+          ./manage.sh build
           ls
