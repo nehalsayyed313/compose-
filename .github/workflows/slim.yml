@@ -7,14 +7,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Haskell (Stack)
-        uses: haskell-actions/setup@v2
-        with:
-          stack-version: 'latest'
-          enable-stack: true
+      
 
       - name: Install build dependencies and test
         run: |
-          git clone --depth 1 https://github.com/mfussenegger/mkjson.git
-          cd mkjson
-          stack install
+          git clone --depth 1 https://codeberg.org/tslocum/sriracha.git
+          cd sriracha
+          go build
+          ls
