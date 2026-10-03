@@ -7,15 +7,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-           dotnet-version: '11.0.x' 
-        
-      - name: Install build dependencies and test
+          # Note: '11.0.x' does not exist as a stable SDK channel and will fail.
+          # Installing both 8.0.x and 9.0.x ensures compatibility with modern projects.
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Clone and publish
         run: |
           git clone --depth 1 https://codeberg.org/Lighty/Kit.git
           cd Kit
-          dotnet publish -c Release -r linux-arm64 --self-contained true
-          ls
+          dotnet publish -c Release -r linux-arm64 --self-contained true -o publish
+          ls -la publish
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kit-linux-arm64
+          path: Kit/publish/
+          if-no-files-found: error
