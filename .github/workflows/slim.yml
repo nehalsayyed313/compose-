@@ -15,7 +15,7 @@ jobs:
         
       - name: Install build dependencies and test
         run: |
-          git clone --depth 1 https://codeberg.org/Ryamos/SharpPawn.git
-          cd SharpPawn
+          git clone --depth 1 https://codeberg.org/Lighty/Kit.git
+          cd Kit
           dotnet build
           ls
