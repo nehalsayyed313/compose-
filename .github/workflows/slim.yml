@@ -11,7 +11,10 @@ jobs:
 
       - name: Install build dependencies and test
         run: |
-          git clone https://codeberg.org/dropwhile/static-server.git
-          cd static-server/docker
-          docker build -t app .
+          git clone https://codeberg.org/estrogen/evm.git
+          cd evm
+          mkdir build
+          cd build
+          cmake ..
+          make -j 4
           ls
