@@ -11,8 +11,7 @@ jobs:
 
       - name: Install build dependencies and test
         run: |
-          git clone https://github.com/asciimoo/hister.git
-          cd hister
-          chmod +x manage.sh
-          ./manage.sh build
+          git clone https://codeberg.org/nocloud/davd.git
+          cd davd
+          go build -v
           ls
