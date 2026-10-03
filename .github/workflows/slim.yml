@@ -11,7 +11,7 @@ jobs:
 
       - name: Install build dependencies and test
         run: |
-          git clone https://codeberg.org/nocloud/davd.git
-          cd davd
+          git clone https://codeberg.org/dropwhile/static-server.git
+          cd static-server
           go build -v
           ls
