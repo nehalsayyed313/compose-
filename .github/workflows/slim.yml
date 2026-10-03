@@ -19,6 +19,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Wipe existing repository contents
+        run: |
+          # Remove everything in root except .git and .github
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -28,15 +33,15 @@ jobs:
         run: |
           dotnet new install Microsoft.Maui.Templates
 
-      - name: Create MAUI Project
+      - name: Create MAUI Project at root
         run: |
-          dotnet new maui -n "${{ inputs.project_name }}"
+          dotnet new maui -n "${{ inputs.project_name }}" -o . --force
 
-      - name: Commit and push changes
+      - name: Commit and push clean state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "Scaffold MAUI project: ${{ inputs.project_name }}" || exit 0
+          git add -A
+          git commit -m "Wipe old files and initialize MAUI: ${{ inputs.project_name }}" || exit 0
           git push origin HEAD
           
