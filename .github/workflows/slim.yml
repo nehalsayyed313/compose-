@@ -17,5 +17,5 @@ jobs:
         run: |
           git clone --depth 1 https://codeberg.org/Lighty/Kit.git
           cd Kit
-          dotnet build
+          dotnet publish -c Release -r linux-arm64 --self-contained true
           ls
