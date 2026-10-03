@@ -1,12 +1,12 @@
-name: Create and Push MAUI Project
+name: Create and Push Qt Mobile Project
 
 on:
   workflow_dispatch:
     inputs:
       project_name:
-        description: "Name of the MAUI project"
+        description: "Name of the Qt project"
         required: false
-        default: "MyMauiApp"
+        default: "MyQtApp"
         type: string
 
 permissions:
@@ -21,27 +21,144 @@ jobs:
 
       - name: Wipe existing repository contents
         run: |
-          # Remove everything in root except .git and .github
           find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
-
-      - name: Install MAUI Templates
+      - name: Scaffold Qt Quick Mobile Project
         run: |
-          dotnet new install Microsoft.Maui.Templates
+          APP_NAME="${{ inputs.project_name }}"
 
-      - name: Create MAUI Project at root
-        run: |
-          dotnet new maui -n "${{ inputs.project_name }}" -o . --force
+          # 1. CMake configuration
+          cat << 'EOF' > CMakeLists.txt
+          cmake_minimum_required(VERSION 3.16)
+
+          project(APP_NAME VERSION 0.1 LANGUAGES CXX)
+
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+          find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2)
+
+          qt_standard_project_setup(REQUIRES 6.5)
+
+          qt_add_executable(appAPP_NAME
+              main.cpp
+          )
+
+          qt_add_qml_module(appAPP_NAME
+              URI APP_NAME
+              VERSION 1.0
+              QML_FILES
+                  Main.qml
+          )
+
+          set_target_properties(appAPP_NAME PROPERTIES
+              MACOSX_BUNDLE_GUI_IDENTIFIER com.example.APP_NAME
+              MACOSX_BUNDLE TRUE
+              WIN32_EXECUTABLE TRUE
+          )
+
+          target_link_libraries(appAPP_NAME PRIVATE
+              Qt6::Quick
+              Qt6::QuickControls2
+          )
+          EOF
+
+          # 2. C++ application entry point
+          cat << 'EOF' > main.cpp
+          #include <QGuiApplication>
+          #include <QQmlApplicationEngine>
+          #include <QQuickStyle>
+
+          int main(int argc, char *argv[])
+          {
+              QGuiApplication app(argc, argv);
+
+              // Use Material styling for mobile
+              QQuickStyle::setStyle("Material");
+
+              QQmlApplicationEngine engine;
+              QObject::connect(
+                  &engine,
+                  &QQmlApplicationEngine::objectCreationFailed,
+                  &app,
+                  []() { QCoreApplication::exit(-1); },
+                  Qt::QueuedConnection);
+
+              engine.loadFromModule("APP_NAME", "Main");
+
+              return app.exec();
+          }
+          EOF
+
+          # 3. Responsive QML interface
+          cat << 'EOF' > Main.qml
+          import QtQuick
+          import QtQuick.Controls
+          import QtQuick.Layouts
+
+          ApplicationWindow {
+              id: window
+              visible: true
+              width: 360
+              height: 640
+              title: qsTr("APP_NAME")
+
+              header: ToolBar {
+                  Label {
+                      text: qsTr("APP_NAME")
+                      font.pixelSize: 20
+                      anchors.centerIn: parent
+                  }
+              }
+
+              ColumnLayout {
+                  anchors.centerIn: parent
+                  spacing: 20
+
+                  Label {
+                      text: qsTr("Hello, Qt Mobile!")
+                      font.pixelSize: 22
+                      Layout.alignment: Qt.AlignHCenter
+                  }
+
+                  Button {
+                      id: countBtn
+                      text: qsTr("Tap Me")
+                      highlighted: true
+                      Layout.alignment: Qt.AlignHCenter
+                      property int count: 0
+                      onClicked: {
+                          count++;
+                          statusText.text = qsTr("Tapped: %1 times").arg(count);
+                      }
+                  }
+
+                  Label {
+                      id: statusText
+                      text: qsTr("Tapped: 0 times")
+                      font.pixelSize: 16
+                      Layout.alignment: Qt.AlignHCenter
+                  }
+              }
+          }
+          EOF
+
+          # 4. Standard Qt .gitignore
+          cat << 'EOF' > .gitignore
+          build/
+          *.user
+          .cmake/
+          CMakeLists.txt.user*
+          EOF
+
+          # Replace placeholder with target project name
+          sed -i "s/APP_NAME/${APP_NAME}/g" CMakeLists.txt main.cpp Main.qml
 
       - name: Commit and push clean state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Wipe old files and initialize MAUI: ${{ inputs.project_name }}" || exit 0
+          git commit -m "Initialize Qt Mobile project: ${{ inputs.project_name }}" || exit 0
           git push origin HEAD
           
