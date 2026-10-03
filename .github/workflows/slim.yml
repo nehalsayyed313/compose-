@@ -11,10 +11,7 @@ jobs:
 
       - name: Install build dependencies and test
         run: |
-          git clone https://codeberg.org/estrogen/evm.git
-          cd evm
-          mkdir build
-          cd build
-          cmake ..
-          make -j 4
+          git clone --depth 1 https://codeberg.org/Ryamos/SharpPawn.git
+          cd SharpPawn
+          dotnet build
           ls
