@@ -1,40 +1,42 @@
-name: learn and test
+name: Create and Push MAUI Project
 
 on:
   workflow_dispatch:
+    inputs:
+      project_name:
+        description: "Name of the MAUI project"
+        required: false
+        default: "MyMauiApp"
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  scaffold:
     runs-on: ubuntu-latest
     steps:
-      - name: Install ARM64 Toolchain and LLVM Linker
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
+          dotnet-version: '9.0.x'
 
-      - name: Clone and publish
+      - name: Install MAUI Templates
         run: |
-          git clone --depth 1 https://codeberg.org/Lighty/Kit.git
-          cd Kit
-          dotnet publish Kit/Kit.csproj \
-            -c Release \
-            -r linux-arm64 \
-            --self-contained true \
-            -p:LinkerFlavor=lld \
-            -p:ObjCopyName=aarch64-linux-gnu-objcopy \
-            -o publish
-          ls -la publish
+          dotnet new install Microsoft.Maui.Templates
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: kit-linux-arm64
-          path: Kit/publish/
-          if-no-files-found: error
+      - name: Create MAUI Project
+        run: |
+          dotnet new maui -n "${{ inputs.project_name }}"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Scaffold MAUI project: ${{ inputs.project_name }}" || exit 0
+          git push origin HEAD
           
