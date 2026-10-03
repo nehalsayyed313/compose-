@@ -7,21 +7,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Install ARM64 Cross-Compiler Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          # Note: '11.0.x' does not exist as a stable SDK channel and will fail.
-          # Installing both 8.0.x and 9.0.x ensures compatibility with modern projects.
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
 
       - name: Clone and publish
         run: |
           git clone --depth 1 https://codeberg.org/Lighty/Kit.git
           cd Kit
-          dotnet publish -c Release -r linux-arm64 --self-contained true -o publish
+          dotnet publish Kit/Kit.csproj \
+            -c Release \
+            -r linux-arm64 \
+            --self-contained true \
+            -p:CppCompilerAndLinker=aarch64-linux-gnu-gcc \
+            -p:ObjCopyName=aarch64-linux-gnu-objcopy \
+            -o publish
           ls -la publish
 
       - name: Upload Build Artifact
@@ -30,3 +37,4 @@ jobs:
           name: kit-linux-arm64
           path: Kit/publish/
           if-no-files-found: error
+          
