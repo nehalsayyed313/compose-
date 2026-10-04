@@ -1,21 +1,46 @@
-name: Build 
+name: Sync and Push Template
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  sync-repo:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout repository
+      - name: Checkout current repository
         uses: actions/checkout@v4
 
-      - name: Build Town
+      - name: Clone source and replace existing files
         run: |
-          git clone --depth 1 https://github.com/hadiyarajesh/compose-template.git
-          cd compose-template
-          chmod +x gradlew 
-          ./gradlew assembleDebug --no-daemon 
-          
+          # 1. Clone the external repo into a temporary folder
+          git clone --depth 1 https://github.com/hadiyarajesh/compose-template.git temp_src
+
+          # 2. Delete all tracked and untracked files except .git, .github, and the temp directory
+          find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' ! -name '.github' ! -name 'temp_src' -exec rm -rf {} +
+
+          # 3. Remove the source repo's .git history before copying
+          rm -rf temp_src/.git
+
+          # 4. Copy all files (including hidden ones) into root
+          cp -rf temp_src/. .
+          rm -rf temp_src
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          # Push only if there are actual changes
+          if git diff-index --quiet HEAD; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: sync files from compose-template"
+            git push
+          fi
           
