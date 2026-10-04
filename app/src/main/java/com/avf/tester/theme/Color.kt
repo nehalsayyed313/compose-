@@ -1,4 +1,4 @@
-package com.nehal.app.theme
+package com.avf.tester.theme
 
 import androidx.compose.ui.graphics.Color
 

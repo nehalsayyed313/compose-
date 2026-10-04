@@ -1,9 +1,9 @@
-package com.nehal.app.ui.main
+package com.avf.tester.ui.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nehal.app.data.DataRepository
-import com.nehal.app.ui.main.MainScreenUiState.Success
+import com.avf.tester.data.DataRepository
+import com.avf.tester.ui.main.MainScreenUiState.Success
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch

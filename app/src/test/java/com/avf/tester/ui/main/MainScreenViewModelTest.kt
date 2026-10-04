@@ -1,6 +1,6 @@
-package com.nehal.app.ui.main
+package com.avf.tester.ui.main
 
-import com.nehal.app.data.DataRepository
+import com.avf.tester.data.DataRepository
 import junit.framework.TestCase.assertEquals
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first

@@ -1,4 +1,4 @@
-package com.nehal.app.ui.main
+package com.avf.tester.ui.main
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -7,7 +7,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
-/** UI tests for [com.nehal.app.ui.main.MainScreen]. */
+/** UI tests for [com.avf.tester.ui.main.MainScreen]. */
 class MainScreenTest {
 
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
