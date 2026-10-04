@@ -6,15 +6,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/abitofhelp/dev-container-ada:latest
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Build Town
         run: |
-          git clone --depth 1 https://codeberg.org/ZenitDS/town.git
-          cd town
-          alr -n build
+          git clone --depth 1 https://github.com/hadiyarajesh/compose-template.git
+          cd compose-template
+          chmod +x gradlew 
+          ./gradlew assembleDebug --no-daemon 
+          
           
