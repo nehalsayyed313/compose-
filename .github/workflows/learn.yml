@@ -24,13 +24,12 @@ jobs:
       # Runs a single command using the runners shell
       - name: Run a one-line script
         run: |
-             npx create-next-app@latest myapp -y
-             cd myapp
-             npm install 
+             git clone --depth 1 https://codeberg.org/boardgamers/vanuatu.git
+             cd vanuatu
+             npm i -g pnpm
+             pnpm install 
              npm run build 
              ls
-
-
 
 
         
