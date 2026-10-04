@@ -1,10 +1,19 @@
-name: Build learn 
+name: Reset & Create Godot Project
 
 on:
   workflow_dispatch:
+    inputs:
+      project_name:
+        description: "Name of the new Godot project"
+        required: true
+        default: "NewGodotProject"
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
-  build-android:
+  create-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -13,14 +22,47 @@ jobs:
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:
-          # Specify the exact semantic version you need
           version: 4.3.0
-          # Set to true if you are using the C# / .NET version of Godot
           use-dotnet: false
-          # Set to true to automatically download Godot's export templates
-          include-templates: true
+          include-templates: false
 
-      # 3. Verify the installation or run your build/export commands
-      - name: Verify Godot Installation
+      - name: Clean repository
         run: |
-          godot --version
+          # Delete all files and folders except .git and .github (to preserve this workflow)
+          find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name '.github' -exec rm -rf {} +
+
+      - name: Generate new Godot project
+        run: |
+          # 1. Create a minimal Godot 4 project file
+          cat <<EOF > project.godot
+          ; Engine configuration file.
+          config_version=5
+
+          [application]
+
+          config/name="${{ inputs.project_name }}"
+          config/features=PackedStringArray("4.3", "Forward Plus")
+          EOF
+
+          # 2. Add standard Godot gitignore
+          cat <<EOF > .gitignore
+          .godot/
+          *.translation
+          EOF
+
+          # 3. Initialize project structure via headless Godot
+          godot --headless --path . --editor --quit || true
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add -A
+          
+          # Only commit and push if there are tracked file changes
+          if ! git diff --staged --quiet; then
+            git commit -m "Initialize Godot project: ${{ inputs.project_name }} (clean reset)"
+            git push origin HEAD:${{ github.ref }}
+          fi
+          
