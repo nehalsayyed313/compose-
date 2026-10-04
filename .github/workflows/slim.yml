@@ -1,35 +1,63 @@
-name: Sync and Push Template
+name: Scaffold App and Reset Repo
 
 on:
   workflow_dispatch:
+    inputs:
+      project_name:
+        description: "Application Name"
+        required: false
+        default: "MyApplication"
+      package_name:
+        description: "Package Name"
+        required: false
+        default: "com.example.myapplication"
 
 permissions:
   contents: write
 
 jobs:
-  sync-repo:
+  create-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout current repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Clone source and replace existing files
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Install Android CLI and generate project
         run: |
-          # 1. Clone source repo
-          git clone --depth 1 https://github.com/hadiyarajesh/compose-template.git temp_src
+          # 1. Install Android CLI
+          curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
+          
+          # Add default installer target directories to PATH
+          export PATH="$HOME/.android/bin:$HOME/.local/bin:$HOME/bin:$PATH"
 
-          # 2. Strip git history and remote workflows (prevents permission rejection)
-          rm -rf temp_src/.git temp_src/.github/workflows
+          # 2. Generate project into an isolated folder
+          mkdir -p temp_app
+          cd temp_app
 
-          # 3. Clean root directory except .git, .github (preserves this sync workflow), and temp_src
-          find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' ! -name '.github' ! -name 'temp_src' -exec rm -rf {} +
+          # Run the project generator command (update arguments if targeting a specific template)
+          android create project \
+            --name "${{ inputs.project_name }}" \
+            --package "${{ inputs.package_name }}" || true
 
-          # 4. Copy template files into root
-          cp -rf temp_src/. .
-          rm -rf temp_src
+          cd ..
 
-      - name: Commit and push changes
+      - name: Wipe old files and copy new project
+        run: |
+          # Remove all tracked/untracked root files except .git, .github, and temp_app
+          find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' ! -name '.github' ! -name 'temp_app' -exec rm -rf {} +
+
+          # Move generated files to root
+          cp -rf temp_app/. .
+          rm -rf temp_app
+
+      - name: Commit and push to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -39,7 +67,7 @@ jobs:
           if git diff-index --quiet HEAD; then
             echo "No changes to commit."
           else
-            git commit -m "chore: sync files from compose-template"
+            git commit -m "feat: initialize new project via android-cli"
             git push
           fi
           
