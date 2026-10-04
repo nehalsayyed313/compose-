@@ -1,68 +1,98 @@
-name: Reset & Create Godot Project
+name: Export Android APK
 
 on:
   workflow_dispatch:
-    inputs:
-      project_name:
-        description: "Name of the new Godot project"
-        required: true
-        default: "NewGodotProject"
-        type: string
-
-permissions:
-  contents: write
 
 jobs:
-  create-and-push:
+  export-android:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Godot
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Godot Engine & Templates
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.3.0
           use-dotnet: false
-          include-templates: false
+          include-templates: true
 
-      - name: Clean repository
+      - name: Configure Android SDK & Keystore in Godot
         run: |
-          # Delete all files and folders except .git and .github (to preserve this workflow)
-          find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name '.github' -exec rm -rf {} +
+          # 1. Generate a standard debug keystore
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey \
+            -keypass android -keystore debug.keystore \
+            -storepass android -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 9999
 
-      - name: Generate new Godot project
-        run: |
-          # 1. Create a minimal Godot 4 project file
-          cat <<EOF > project.godot
-          ; Engine configuration file.
-          config_version=5
+          # 2. Tell Godot where Android SDK and debug keystore are located
+          mkdir -p ~/.config/godot
+          cat <<EOF > ~/.config/godot/editor_settings-4.tres
+          [gd_resource type="EditorSettings" format=3]
 
-          [application]
-
-          config/name="${{ inputs.project_name }}"
-          config/features=PackedStringArray("4.3", "Forward Plus")
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
           EOF
 
-          # 2. Add standard Godot gitignore
-          cat <<EOF > .gitignore
-          .godot/
-          *.translation
+      - name: Generate export_presets.cfg
+        run: |
+          # Create Android preset targeting standard 64-bit ARM devices (arm64-v8a)
+          cat <<'EOF' > export_presets.cfg
+          [preset.0]
+
+          name="Android"
+          platform="Android"
+          runnable=true
+          advanced_options=false
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter=""
+          export_path="build/cube.apk"
+
+          [preset.0.options]
+
+          custom_template/debug=""
+          custom_template/release=""
+          gradle_build/use_gradle_build=false
+          architectures/arm64-v8a=true
+          architectures/armeabi-v7a=false
+          architectures/x86_64=false
+          architectures/x86=false
+          package/unique_name="com.example.cube3d"
+          package/name="3D Cube"
+          package/signed=true
+          keystore/debug="debug.keystore"
+          keystore/debug_user="androiddebugkey"
+          keystore/debug_password="android"
+          keystore/release=""
+          keystore/release_user=""
+          keystore/release_password=""
           EOF
 
-          # 3. Initialize project structure via headless Godot
+      - name: Build Android APK
+        run: |
+          mkdir -p build
+          # Headless Godot requires an initial cache pass before exporting
           godot --headless --path . --editor --quit || true
+          godot --headless --path . --export-debug "Android" build/cube.apk
 
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add -A
-          
-          # Only commit and push if there are tracked file changes
-          if ! git diff --staged --quiet; then
-            git commit -m "Initialize Godot project: ${{ inputs.project_name }} (clean reset)"
-            git push origin HEAD:${{ github.ref }}
-          fi
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3d-cube-android-apk
+          path: build/cube.apk
           
