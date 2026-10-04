@@ -1,4 +1,2 @@
-build/
-*.user
-.cmake/
-CMakeLists.txt.user*
+.godot/
+*.translation
