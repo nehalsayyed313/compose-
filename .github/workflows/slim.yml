@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  export-android:
+  build:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/abitofhelp/dev-container-ada:latest
@@ -12,8 +12,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run
+      - name: Build Town
         run: |
-             git clone --depth 1 https://codeberg.org/ZenitDS/town.git
-             cd town
-             alr build
+          git clone --depth 1 https://codeberg.org/ZenitDS/town.git
+          cd town
+          alr -n build
+          
