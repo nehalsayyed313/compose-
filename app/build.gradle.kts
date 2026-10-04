@@ -85,6 +85,6 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
   // FFmpeg & Image Loading
-  implementation(libs.ffmpeg.kit)
+  
   implementation(libs.coil.compose)
 }
