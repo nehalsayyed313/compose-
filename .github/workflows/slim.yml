@@ -12,17 +12,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure Keystore & Export Preset
+      - name: Prepare Godot Templates and Settings
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          # 1. Generate debug keystore directly in project root
+          # 1. Copy pre-installed export templates from /root to the GitHub runner's home
+          mkdir -p ~/.local/share/godot
+          cp -r /root/.local/share/godot/export_templates ~/.local/share/godot/
+
+          # 2. Auto-detect Java SDK path inside the container
+          JAVA_HOME_PATH=$(dirname $(dirname $(readlink -f $(which javac || which java))))
+          ANDROID_PATH="${ANDROID_HOME:-/usr/lib/android-sdk}"
+
+          # 3. Generate the debug keystore in the project root
           keytool -keyalg RSA -genkeypair -alias androiddebugkey \
             -keypass android -keystore debug.keystore \
             -storepass android -dname "CN=Android Debug,O=Android,C=US" \
             -validity 9999
 
-          # 2. Write export preset
+          # 4. Write editor settings pointing to Java and Android SDKs
+          mkdir -p ~/.config/godot
+          cat <<EOF > ~/.config/godot/editor_settings-4.tres
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_PATH"
+          export/android/java_sdk_path = "$JAVA_HOME_PATH"
+          export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Create export_presets.cfg
+        run: |
           cat <<'EOF' > export_presets.cfg
           [preset.0]
 
