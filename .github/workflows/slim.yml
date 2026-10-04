@@ -16,9 +16,6 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Setup Godot Engine & Templates
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -28,13 +25,16 @@ jobs:
 
       - name: Configure Android SDK & Keystore in Godot
         run: |
-          # 1. Generate a standard debug keystore
+          # 1. Accept licenses for pre-installed Android SDK on GitHub runner
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+          # 2. Generate a standard debug keystore
           keytool -keyalg RSA -genkeypair -alias androiddebugkey \
             -keypass android -keystore debug.keystore \
             -storepass android -dname "CN=Android Debug,O=Android,C=US" \
             -validity 9999
 
-          # 2. Tell Godot where Android SDK and debug keystore are located
+          # 3. Tell Godot where Android SDK and debug keystore are located
           mkdir -p ~/.config/godot
           cat <<EOF > ~/.config/godot/editor_settings-4.tres
           [gd_resource type="EditorSettings" format=3]
@@ -48,7 +48,6 @@ jobs:
 
       - name: Generate export_presets.cfg
         run: |
-          # Create Android preset targeting standard 64-bit ARM devices (arm64-v8a)
           cat <<'EOF' > export_presets.cfg
           [preset.0]
 
