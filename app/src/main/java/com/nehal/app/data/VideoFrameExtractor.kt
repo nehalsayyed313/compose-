@@ -1,9 +1,9 @@
 package com.nehal.app.data
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import android.net.Uri
-import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -17,34 +17,32 @@ class VideoFrameExtractor(private val context: Context) {
             mkdirs()
         }
 
-        // Copy content Uri to temporary cache file so FFmpeg has direct filesystem access
-        val tempVideoFile = File(context.cacheDir, "input_temp_video.mp4")
-        context.contentResolver.openInputStream(videoUri)?.use { input ->
-            FileOutputStream(tempVideoFile).use { output ->
-                input.copyTo(output)
+        val retriever = MediaMetadataRetriever()
+        retriever.setDataSource(context, videoUri)
+
+        val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        val frames = mutableListOf<FrameItem>()
+
+        // Grab frames at regular intervals (e.g. every 500ms or 1s so it doesn't run out of memory)
+        val intervalUs = 500_000L // 500ms in microseconds
+        val totalUs = durationMs * 1000L
+        var currentUs = 0L
+        var index = 0
+
+        while (currentUs < totalUs) {
+            val bitmap = retriever.getFrameAtTime(currentUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            if (bitmap != null) {
+                val file = File(framesDir, "frame_$index.jpg")
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                }
+                frames.add(FrameItem(id = index, file = file, isSelected = false))
+                index++
             }
+            currentUs += intervalUs
         }
 
-        val outputPattern = File(framesDir, "frame_%05d.jpg").absolutePath
-        val command = "-y -i \"${tempVideoFile.absolutePath}\" \"$outputPattern\""
-
-        val session = FFmpegKit.execute(command)
-
-        // Clean up temporary source video
-        tempVideoFile.delete()
-
-        if (ReturnCode.isSuccess(session.returnCode)) {
-            framesDir.listFiles { _, name -> name.endsWith(".jpg") }
-                ?.sortedBy { it.name }
-                ?.mapIndexed { index, file ->
-                    FrameItem(
-                        id = index,
-                        file = file,
-                        isSelected = false
-                    )
-                } ?: emptyList()
-        } else {
-            throw IllegalStateException("FFmpeg failed: ${session.failStackTrace ?: "Unknown error"}")
-        }
+        retriever.release()
+        frames
     }
 }
