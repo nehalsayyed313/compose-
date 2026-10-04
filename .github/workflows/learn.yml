@@ -31,5 +31,11 @@ jobs:
              npm run build 
              ls
 
+      - name: upload 
+        uses: actions/upload-artifacts@v4
+        with:
+          name: web
+          path: vanuatu/dist
+
 
         
