@@ -16,16 +16,16 @@ jobs:
 
       - name: Clone source and replace existing files
         run: |
-          # 1. Clone the external repo into a temporary folder
+          # 1. Clone source repo
           git clone --depth 1 https://github.com/hadiyarajesh/compose-template.git temp_src
 
-          # 2. Delete all tracked and untracked files except .git, .github, and the temp directory
+          # 2. Strip git history and remote workflows (prevents permission rejection)
+          rm -rf temp_src/.git temp_src/.github/workflows
+
+          # 3. Clean root directory except .git, .github (preserves this sync workflow), and temp_src
           find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' ! -name '.github' ! -name 'temp_src' -exec rm -rf {} +
 
-          # 3. Remove the source repo's .git history before copying
-          rm -rf temp_src/.git
-
-          # 4. Copy all files (including hidden ones) into root
+          # 4. Copy template files into root
           cp -rf temp_src/. .
           rm -rf temp_src
 
@@ -36,7 +36,6 @@ jobs:
 
           git add -A
 
-          # Push only if there are actual changes
           if git diff-index --quiet HEAD; then
             echo "No changes to commit."
           else
