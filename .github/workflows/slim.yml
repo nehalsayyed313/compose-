@@ -23,27 +23,32 @@ jobs:
           use-dotnet: false
           include-templates: true
 
-      - name: Configure Android SDK & Keystore in Godot
+      - name: Configure Android SDK, Keystore & Godot Settings
         run: |
-          # 1. Accept licenses for pre-installed Android SDK on GitHub runner
+          # 1. Accept Android SDK licenses
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 2. Generate a standard debug keystore
+          # 2. Ensure Android build-tools 34.0.0 and platform 34 are installed
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+
+          # 3. Generate debug keystore directly in the project root
           keytool -keyalg RSA -genkeypair -alias androiddebugkey \
             -keypass android -keystore debug.keystore \
             -storepass android -dname "CN=Android Debug,O=Android,C=US" \
             -validity 9999
 
-          # 3. Tell Godot where Android SDK and debug keystore are located
+          # 4. Write full Godot 4 editor settings with absolute paths
           mkdir -p ~/.config/godot
           cat <<EOF > ~/.config/godot/editor_settings-4.tres
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
           export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
           export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
+          export/android/force_system_user = false
           EOF
 
       - name: Generate export_presets.cfg
@@ -74,7 +79,7 @@ jobs:
           package/unique_name="com.example.cube3d"
           package/name="3D Cube"
           package/signed=true
-          keystore/debug="debug.keystore"
+          keystore/debug="res://debug.keystore"
           keystore/debug_user="androiddebugkey"
           keystore/debug_password="android"
           keystore/release=""
@@ -85,9 +90,10 @@ jobs:
       - name: Build Android APK
         run: |
           mkdir -p build
-          # Headless Godot requires an initial cache pass before exporting
-          godot --headless --path . --editor --quit || true
-          godot --headless --path . --export-debug "Android" build/cube.apk
+          # Initial import pass without opening the full editor GUI loop
+          godot --headless --path . --import || true
+          # Run export with verbose output to surface any validation warnings
+          godot --headless --verbose --path . --export-debug "Android" build/cube.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
