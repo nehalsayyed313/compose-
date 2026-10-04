@@ -7,8 +7,8 @@ on:
         description: "Application Name"
         required: false
         default: "MyApplication"
-      package_name:
-        description: "Package Name"
+      application_id:
+        description: "Application ID / Package Name"
         required: false
         default: "com.example.myapplication"
 
@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -29,35 +31,48 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
-      - name: Install Android CLI and generate project
+      - name: Install Android CLI
         run: |
-          # 1. Install Android CLI
+          # Download and install Google Android CLI
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           
-          # Add default installer target directories to PATH
-          export PATH="$HOME/.android/bin:$HOME/.local/bin:$HOME/bin:$PATH"
+          # Locate installed binary and expose to all subsequent steps
+          CLI_DIR=$(dirname "$(find "$HOME" -name "android" -type f -executable 2>/dev/null | head -n 1)")
+          if [ -z "$CLI_DIR" ]; then
+            echo "Error: Android CLI binary not found after installation."
+            exit 1
+          fi
+          echo "$CLI_DIR" >> "$GITHUB_PATH"
+          echo "Android CLI installed at: $CLI_DIR"
 
-          # 2. Generate project into an isolated folder
-          mkdir -p temp_app
-          cd temp_app
-
-          # Run the project generator command (update arguments if targeting a specific template)
-          android create project \
-            --name "${{ inputs.project_name }}" \
-            --package "${{ inputs.package_name }}" || true
-
-          cd ..
-
-      - name: Wipe old files and copy new project
+      - name: Scaffold project and verify output
         run: |
-          # Remove all tracked/untracked root files except .git, .github, and temp_app
+          # Scaffold using official android create syntax
+          android create \
+            --name="${{ inputs.project_name }}" \
+            --application-id="${{ inputs.application_id }}" \
+            --namespace="${{ inputs.application_id }}" \
+            --output="./temp_app"
+
+          # Verify files were generated before doing any cleanup
+          if [ ! -d "temp_app" ] || [ -z "$(ls -A temp_app)" ]; then
+            echo "Error: temp_app is empty. Project generation failed."
+            exit 1
+          fi
+
+      - name: Wipe old files and swap new project
+        run: |
+          # 1. Remove all old repository files except .git, .github, and temp_app
           find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' ! -name '.github' ! -name 'temp_app' -exec rm -rf {} +
 
-          # Move generated files to root
+          # 2. Prevent workflow push permission errors if template created any workflows
+          rm -rf temp_app/.github/workflows
+
+          # 3. Move new project files into root
           cp -rf temp_app/. .
           rm -rf temp_app
 
-      - name: Commit and push to repository
+      - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -65,9 +80,9 @@ jobs:
           git add -A
 
           if git diff-index --quiet HEAD; then
-            echo "No changes to commit."
+            echo "No changes detected to commit."
           else
-            git commit -m "feat: initialize new project via android-cli"
-            git push
+            git commit -m "feat: scaffold new Android app"
+            git push origin "HEAD:${{ github.ref_name }}"
           fi
           
