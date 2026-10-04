@@ -14,19 +14,7 @@ jobs:
       
       - name: Running build
         run: |
-             git clone --depth 1 https://github.com/zhanghai/MaterialFiles.git
-             cd MaterialFiles
-             chmod +x gradlew
-             ./gradlew assembleDebug --no-daemon 
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-           name: my-artifact-name
-           path: MaterialFiles/app/build/outputs/
-    
-      
-
-
-          
-      
+             git clone --depth 1 https://github.com/arthenica/ffmpeg-kit.git
+             cd ffmpeg-kit
+             chmod +x android.sh
+             ./androids.sh
