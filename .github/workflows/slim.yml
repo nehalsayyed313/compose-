@@ -10,9 +10,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          # Specify the exact semantic version you need
+          version: 4.3.0
+          # Set to true if you are using the C# / .NET version of Godot
+          use-dotnet: false
+          # Set to true to automatically download Godot's export templates
+          include-templates: true
+
+      # 3. Verify the installation or run your build/export commands
+      - name: Verify Godot Installation
         run: |
-             git clone --depth 1 https://codeberg.org/ae7th/kfz.git
-             cd kfz
-             docker build -t kern .
-          
+          godot --version
