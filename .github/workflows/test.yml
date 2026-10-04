@@ -17,4 +17,4 @@ jobs:
              git clone --depth 1 https://github.com/arthenica/ffmpeg-kit.git
              cd ffmpeg-kit
              chmod +x android.sh
-             ./androids.sh
+             ./android.sh
