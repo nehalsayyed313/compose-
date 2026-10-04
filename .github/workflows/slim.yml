@@ -1,4 +1,4 @@
-name: Export Android APK
+name: Build 
 
 on:
   workflow_dispatch:
@@ -7,86 +7,13 @@ jobs:
   export-android:
     runs-on: ubuntu-latest
     container:
-      image: barichello/godot-ci:4.3
+      image: ghcr.io/abitofhelp/dev-container-ada:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare Godot Templates and Settings
+      - name: Run
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          # 1. Copy pre-installed export templates from /root to the GitHub runner's home
-          mkdir -p ~/.local/share/godot
-          cp -r /root/.local/share/godot/export_templates ~/.local/share/godot/
-
-          # 2. Auto-detect Java SDK path inside the container
-          JAVA_HOME_PATH=$(dirname $(dirname $(readlink -f $(which javac || which java))))
-          ANDROID_PATH="${ANDROID_HOME:-/usr/lib/android-sdk}"
-
-          # 3. Generate the debug keystore in the project root
-          keytool -keyalg RSA -genkeypair -alias androiddebugkey \
-            -keypass android -keystore debug.keystore \
-            -storepass android -dname "CN=Android Debug,O=Android,C=US" \
-            -validity 9999
-
-          # 4. Write editor settings pointing to Java and Android SDKs
-          mkdir -p ~/.config/godot
-          cat <<EOF > ~/.config/godot/editor_settings-4.tres
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/android_sdk_path = "$ANDROID_PATH"
-          export/android/java_sdk_path = "$JAVA_HOME_PATH"
-          export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
-          EOF
-
-      - name: Create export_presets.cfg
-        run: |
-          cat <<'EOF' > export_presets.cfg
-          [preset.0]
-
-          name="Android"
-          platform="Android"
-          runnable=true
-          advanced_options=false
-          dedicated_server=false
-          custom_features=""
-          export_filter="all_resources"
-          include_filter=""
-          exclude_filter=""
-          export_path="build/cube.apk"
-
-          [preset.0.options]
-
-          custom_template/debug=""
-          custom_template/release=""
-          gradle_build/use_gradle_build=false
-          architectures/arm64-v8a=true
-          architectures/armeabi-v7a=false
-          architectures/x86_64=false
-          architectures/x86=false
-          package/unique_name="com.example.cube3d"
-          package/name="3D Cube"
-          package/signed=true
-          keystore/debug="res://debug.keystore"
-          keystore/debug_user="androiddebugkey"
-          keystore/debug_password="android"
-          keystore/release=""
-          keystore/release_user=""
-          keystore/release_password=""
-          EOF
-
-      - name: Build Android APK
-        run: |
-          mkdir -p build
-          godot -v --headless --export-debug "Android" build/cube.apk
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: 3d-cube-android-apk
-          path: build/cube.apk
-          
+             gnat --version
+             alr --versiin
+             
