@@ -1,4 +1,4 @@
-name: Build Qt 6 Android APK
+name: Build learn 
 
 on:
   workflow_dispatch:
@@ -10,60 +10,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install Ninja Build
+      - name: Build
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
-
-      - name: Install Qt 6 Host Tools (Linux Desktop)
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.0'
-          target: 'desktop'
-          dir: '${{ runner.temp }}/Qt'
-          install-deps: 'false'
-          cache: true
-
-      - name: Install Qt 6 Target (Android ARM64)
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.0'
-          target: 'android'
-          arch: 'android_arm64_v8a'
-          dir: '${{ runner.temp }}/Qt'
-          install-deps: 'false'
-          cache: true
-
-      - name: Configure CMake and Build APK
-        run: |
-          QT_DIR="${{ runner.temp }}/Qt/6.8.0"
-          NDK_DIR=$(ls -d $ANDROID_SDK_ROOT/ndk/* | sort -V | tail -n 1)
-
-          echo "Selected NDK: $NDK_DIR"
-          echo "Selected Qt: $QT_DIR"
-
-          # 1. Run qt-cmake using the explicit path
-          "$QT_DIR/android_arm64_v8a/bin/qt-cmake" -B build -G "Ninja" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DQT_ANDROID_ABIS="arm64-v8a" \
-            -DQT_HOST_PATH="$QT_DIR/gcc_64" \
-            -DANDROID_NDK_ROOT="$NDK_DIR" \
-            -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT"
-
-          # 2. Compile libraries and assemble APK
-          cmake --build build --target all
-          cmake --build build --target apk
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: qt-mobile-arm64-apk
-          path: build/**/*.apk
-          if-no-files-found: error
+             git clone --depth 1 https://codeberg.org/ae7th/kfz.git
+             cd kfz
+             docker build -t kern .
           
