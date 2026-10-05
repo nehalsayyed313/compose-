@@ -1,156 +1,41 @@
-name: Build Android App (Remote Repo)
+name: Build Android
 
 on:
   workflow_dispatch:
-    inputs:
-      repository:
-        description: "OpenCut GitHub Repository (owner/repo or Git URL)"
-        required: true
-        default: "https://github.com/mazeincoding/opencut.git"
-        type: string
-      branch:
-        description: "Branch, tag, or commit to clone"
-        required: true
-        default: "main"
-        type: string
-      build_type:
-        description: "Build variant"
-        required: true
-        default: "debug"
-        type: choice
-        options:
-          - debug
-          - release
-      package_format:
-        description: "Output package format"
-        required: true
-        default: "apk"
-        type: choice
-        options:
-          - apk
-          - bundle
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
-  build-android:
-    name: Clone & Build Android (${{ inputs.build_type }})
+  build:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-
     steps:
-      - name: Manually clone upstream OpenCut repository
-        run: |
-          echo "Cloning ${{ inputs.repository }} (branch: ${{ inputs.branch }})..."
-          git init .
-          git remote add origin "${{ inputs.repository }}"
-          git fetch --depth 1 origin "${{ inputs.branch }}"
-          git checkout FETCH_HEAD
-          git submodule update --init --recursive || true
-          ls -la
+      - name: Checkout OpenCut
+        uses: actions/checkout@v4
+        with:
+          repository: mazeincoding/opencut
 
-      - name: Set up Java Development Kit (JDK 17)
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "17"
-          cache: "gradle"
+          distribution: temurin
+          java-version: 17
 
-      - name: Set up Android SDK & Environment
-        uses: android-actions/setup-android@v3
-
-      - name: Configure Android NDK
-        run: |
-          NDK_DIR=$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
-          if [ -z "$NDK_DIR" ]; then
-            echo "Installing standard NDK..."
-            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "ndk;26.1.10909125"
-            NDK_DIR="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
-          fi
-          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
-          echo "Using Android NDK at: $NDK_DIR"
-
-      - name: Set up Bun Runtime
+      - name: Setup Bun
         uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
 
-      - name: Install Monorepo Toolchain (proto & moon)
-        uses: moonrepo/setup-toolchain@v1
-        with:
-          auto-install: true
-          auto-setup: true
+      - name: Setup Rust Targets
+        run: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
-      - name: Add Rust Android cross-compilation targets
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build APK
         run: |
-          rustup target add aarch64-linux-android x86_64-linux-android armv7-linux-androideabi
-          cargo install cargo-ndk --locked || true
+          find . -name "gradlew" -exec chmod +x {} +
+          find . -name "gradlew" -execdir ./gradlew assembleDebug --no-daemon \;
 
-      - name: Sync dependencies with Proto & Bun
-        run: |
-          # Use proto to sync tool versions pinned in .prototools if available
-          if command -v proto &> /dev/null && [ -f ".prototools" ]; then
-            proto use || true
-          fi
-          bun install --frozen-lockfile || bun install
-
-      - name: Compile and assemble Android package
-        env:
-          BUILD_TYPE: ${{ inputs.build_type }}
-          PACKAGE_FORMAT: ${{ inputs.package_format }}
-        run: |
-          VARIANT="$(echo "$BUILD_TYPE" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')"
-          TASK_NAME="assemble$VARIANT"
-          if [ "$PACKAGE_FORMAT" = "bundle" ]; then
-            TASK_NAME="bundle$VARIANT"
-          fi
-
-          echo "Target Gradle task: $TASK_NAME"
-
-          # 1. Moon task execution
-          if moon query tasks --target "mobile:build" >/dev/null 2>&1; then
-            echo "Executing Moon mobile:build target..."
-            moon run mobile:build -- --variant="$BUILD_TYPE" --format="$PACKAGE_FORMAT"
-
-          # 2. Direct Gradle execution in apps/mobile/android
-          elif [ -f "apps/mobile/android/gradlew" ]; then
-            echo "Building via apps/mobile/android/gradlew..."
-            cd apps/mobile/android
-            chmod +x gradlew
-            ./gradlew "$TASK_NAME" --stacktrace
-
-          # 3. Direct Gradle execution in apps/mobile
-          elif [ -f "apps/mobile/gradlew" ]; then
-            echo "Building via apps/mobile/gradlew..."
-            cd apps/mobile
-            chmod +x gradlew
-            ./gradlew "$TASK_NAME" --stacktrace
-
-          # 4. Fallback to package.json scripts
-          elif [ -f "apps/mobile/package.json" ]; then
-            echo "Building via mobile package.json script..."
-            cd apps/mobile
-            bun run "build:android:$BUILD_TYPE" || bun run build:android
-          else
-            echo "::error::Could not find mobile build target or Gradle wrapper."
-            exit 1
-          fi
-
-      - name: Collect build artifacts
-        run: |
-          mkdir -p output-artifacts
-          find . -type f \( -name "*.apk" -o -name "*.aab" \) -not -path "*/build/intermediates/*" -exec cp -v {} output-artifacts/ \;
-          ls -lh output-artifacts/
-
-      - name: Upload Android Build Artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: opencut-android-${{ inputs.build_type }}-${{ inputs.package_format }}
-          path: output-artifacts/*
+          name: opencut-apk
+          path: "**/*.apk"
           if-no-files-found: error
-          retention-days: 14
-          
