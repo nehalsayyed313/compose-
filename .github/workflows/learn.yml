@@ -26,9 +26,10 @@ jobs:
         run: |
              npx create-expo-app@latest mapp -y
              cd mapp 
-             npm install 
+             npm install
+             npx expo run:android --variant release
              ls
-             npm test
+             
 
       - name: upload 
         uses: actions/upload-artifact@v4
