@@ -24,12 +24,11 @@ jobs:
       # Runs a single command using the runners shell
       - name: Run a one-line script
         run: |
-             git clone --depth 1 https://codeberg.org/Lxrs/portfolio.git
-             cd portfolio 
-             npm install -g pnpm
-             pnpm install 
-             npm run build 
+             npx create-expo-app@latest mapp -y
+             cd mapp 
+             npm install 
              ls
+             npm test
 
       - name: upload 
         uses: actions/upload-artifact@v4
