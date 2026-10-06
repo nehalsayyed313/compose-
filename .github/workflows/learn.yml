@@ -34,10 +34,12 @@ jobs:
             -DCMAKE_THREAD_LIBS_INIT="-pthread" \
             -DCMAKE_HAVE_LIBC_PTHREAD=1 \
             -DLIBWEBM_HAVE_CXX_FLAG=1 \
+            -DGGML_OPENMP=OFF \
+            -DSD_OPENMP=OFF \
             -DSD_BUILD_EXAMPLES=ON \
             -DCMAKE_C_FLAGS="-pthread -msimd128" \
             -DCMAKE_CXX_FLAGS="-pthread -msimd128" \
-            -DCMAKE_EXE_LINKER_FLAGS="-pthread -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1 -s FORCE_FILESYSTEM=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=1 -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
+            -DCMAKE_EXE_LINKER_FLAGS="-pthread -s INITIAL_MEMORY=128MB -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s FORCE_FILESYSTEM=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=1 -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
 
           emmake make -j $(nproc)
 
