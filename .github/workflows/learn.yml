@@ -1,4 +1,4 @@
-name: Build 
+name: Build WASM
 
 on:
   workflow_dispatch:
@@ -8,15 +8,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout OpenCut
+      - name: Checkout
         uses: actions/checkout@v4
 
-  
-      - name: Build APK
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@v4
+        with:
+          version: 'latest'
+
+      - name: Verify Emscripten installation
         run: |
-             git clone --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
-             cd stable-diffusion.cpp
-             mkdir build
-             cd build
-             cmake ..
-             make -j 4
+          emcc -v
+
+      - name: Compile stable-diffusion.cpp to WebAssembly
+        run: |
+          git clone --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
+          cd stable-diffusion.cpp
+          mkdir build && cd build
+
+          emcmake cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXECUTABLE_SUFFIX=".html" \
+            -DCMAKE_C_FLAGS="-msimd128" \
+            -DCMAKE_CXX_FLAGS="-msimd128" \
+            -DCMAKE_EXE_LINKER_FLAGS="-s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1"
+
+          emmake make -j $(nproc)
+
+      - name: Stage Web Artifacts
+        run: |
+          mkdir -p dist
+          find stable-diffusion.cpp/build -type f \( -name "*.wasm" -o -name "*.js" -o -name "*.html" -o -name "*.data" \) -exec cp -v {} dist/ \;
+
+      - name: Upload WASM Web Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable-diffusion-wasm
+          path: dist/
+          retention-days: 14
+          
