@@ -1,57 +1,30 @@
-name: Build WASM
+name: Build win-arm64 Application
 
 on:
+  
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-11-arm
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
+      - name: Setup MSVC for ARM64
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          version: 'latest'
+          arch: arm64
 
-      - name: Verify Emscripten installation
+      - name: Compile Standalone Win32 App
         run: |
-          emcc -v
-          emcmake cmake --version
+          cl.exe /O2 /Fe:WineArm64Demo.exe main.c user32.lib /link /SUBSYSTEM:WINDOWS
 
-      - name: Compile stable-diffusion.cpp to WebAssembly
-        run: |
-          git clone --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
-          cd stable-diffusion.cpp
-          mkdir build && cd build
-
-          emcmake cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_EXECUTABLE_SUFFIX=".html" \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-            -DCMAKE_THREAD_LIBS_INIT="-pthread" \
-            -DCMAKE_HAVE_LIBC_PTHREAD=1 \
-            -DLIBWEBM_HAVE_CXX_FLAG=1 \
-            -DGGML_OPENMP=OFF \
-            -DSD_OPENMP=OFF \
-            -DSD_BUILD_EXAMPLES=ON \
-            -DCMAKE_C_FLAGS="-pthread -msimd128" \
-            -DCMAKE_CXX_FLAGS="-pthread -msimd128" \
-            -DCMAKE_EXE_LINKER_FLAGS="-pthread -s INITIAL_MEMORY=128MB -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s FORCE_FILESYSTEM=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=1 -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
-
-          emmake make -j $(nproc)
-
-      - name: Stage Web Artifacts
-        run: |
-          mkdir -p dist
-          find stable-diffusion.cpp/build -type f \( -name "*.wasm" -o -name "*.js" -o -name "*.html" -o -name "*.data" -o -name "*.worker.js" \) -exec cp -v {} dist/ \;
-
-      - name: Upload WASM Artifacts
+      - name: Upload win-arm64 Binary
         uses: actions/upload-artifact@v4
         with:
-          name: stable-diffusion-wasm
-          path: dist/
-          retention-days: 14
+          name: WineArm64Demo
+          path: WineArm64Demo.exe
+          retention-days: 7
           
