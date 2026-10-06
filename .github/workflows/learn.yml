@@ -30,21 +30,14 @@ jobs:
           emcmake cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXECUTABLE_SUFFIX=".html" \
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
             -DCMAKE_THREAD_LIBS_INIT="-pthread" \
             -DCMAKE_HAVE_LIBC_PTHREAD=1 \
+            -DLIBWEBM_HAVE_CXX_FLAG=1 \
             -DSD_BUILD_EXAMPLES=ON \
             -DCMAKE_C_FLAGS="-pthread -msimd128" \
             -DCMAKE_CXX_FLAGS="-pthread -msimd128" \
-            -DCMAKE_EXE_LINKER_FLAGS="\
-              -pthread \
-              -s USE_WEBGPU=1 \
-              -s ALLOW_MEMORY_GROWTH=1 \
-              -s MAXIMUM_MEMORY=4GB \
-              -s WASM_BIGINT=1 \
-              -s FORCE_FILESYSTEM=1 \
-              -s PTHREAD_POOL_SIZE=4 \
-              -s PROXY_TO_PTHREAD=1 \
-              -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
+            -DCMAKE_EXE_LINKER_FLAGS="-pthread -s USE_WEBGPU=1 -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1 -s FORCE_FILESYSTEM=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=1 -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
 
           emmake make -j $(nproc)
 
