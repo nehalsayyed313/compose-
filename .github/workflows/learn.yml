@@ -1,4 +1,4 @@
-name: Build WASM with WebGPU
+name: Build WASM
 
 on:
   workflow_dispatch:
@@ -37,14 +37,14 @@ jobs:
             -DSD_BUILD_EXAMPLES=ON \
             -DCMAKE_C_FLAGS="-pthread -msimd128" \
             -DCMAKE_CXX_FLAGS="-pthread -msimd128" \
-            -DCMAKE_EXE_LINKER_FLAGS="-pthread -s USE_WEBGPU=1 -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1 -s FORCE_FILESYSTEM=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=1 -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
+            -DCMAKE_EXE_LINKER_FLAGS="-pthread -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1 -s FORCE_FILESYSTEM=1 -s PTHREAD_POOL_SIZE=4 -s PROXY_TO_PTHREAD=1 -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
 
           emmake make -j $(nproc)
 
       - name: Stage Web Artifacts
         run: |
           mkdir -p dist
-          find stable-diffusion.cpp/build -type f \( -name "*.wasm" -o -name "*.js" -o -name "*.html" -o -name "*.data" \) -exec cp -v {} dist/ \;
+          find stable-diffusion.cpp/build -type f \( -name "*.wasm" -o -name "*.js" -o -name "*.html" -o -name "*.data" -o -name "*.worker.js" \) -exec cp -v {} dist/ \;
 
       - name: Upload WASM Artifacts
         uses: actions/upload-artifact@v4
