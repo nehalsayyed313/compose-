@@ -19,7 +19,7 @@ jobs:
       - name: Verify Emscripten installation
         run: |
           emcc -v
-          emcmake --version
+          emcmake cmake --version
 
       - name: Compile stable-diffusion.cpp to WebAssembly with WebGPU
         run: |
@@ -35,14 +35,7 @@ jobs:
             -DSD_BUILD_EXAMPLES=ON \
             -DCMAKE_C_FLAGS="-msimd128" \
             -DCMAKE_CXX_FLAGS="-msimd128" \
-            -DCMAKE_EXE_LINKER_FLAGS="\
-              -s USE_WEBGPU=1 \
-              -s ASYNCIFY=1 \
-              -s ALLOW_MEMORY_GROWTH=1 \
-              -s MAXIMUM_MEMORY=4GB \
-              -s WASM_BIGINT=1 \
-              -s FORCE_FILESYSTEM=1 \
-              -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS']"
+            -DCMAKE_EXE_LINKER_FLAGS="-s USE_WEBGPU=1 -s ASYNCIFY=1 -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1 -s FORCE_FILESYSTEM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS']"
 
           emmake make -j $(nproc)
 
