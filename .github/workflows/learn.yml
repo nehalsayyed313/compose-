@@ -1,4 +1,4 @@
-name: Build Android
+name: Build 
 
 on:
   workflow_dispatch:
@@ -10,32 +10,13 @@ jobs:
     steps:
       - name: Checkout OpenCut
         uses: actions/checkout@v4
-        with:
-          repository: mazeincoding/opencut
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Setup Rust Targets
-        run: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-
-      - name: Install Dependencies
-        run: bun install
-
+  
       - name: Build APK
         run: |
-          find . -name "gradlew" -exec chmod +x {} +
-          find . -name "gradlew" -execdir ./gradlew assembleDebug --no-daemon \;
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: opencut-apk
-          path: "**/*.apk"
-          if-no-files-found: error
+             git clone --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
+             cd stable-diffusion.cpp
+             mkdir build
+             cd build
+             cmake ..
+             make -j 4
