@@ -21,7 +21,7 @@ jobs:
           emcc -v
           emcmake cmake --version
 
-      - name: Compile stable-diffusion.cpp to WebAssembly with WebGPU
+      - name: Compile stable-diffusion.cpp to WebAssembly
         run: |
           git clone --depth 1 --recursive https://github.com/leejet/stable-diffusion.cpp.git
           cd stable-diffusion.cpp
@@ -30,12 +30,21 @@ jobs:
           emcmake cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_EXECUTABLE_SUFFIX=".html" \
-            -DGGML_WEBGPU=ON \
-            -DSD_WEBGPU=ON \
+            -DCMAKE_THREAD_LIBS_INIT="-pthread" \
+            -DCMAKE_HAVE_LIBC_PTHREAD=1 \
             -DSD_BUILD_EXAMPLES=ON \
-            -DCMAKE_C_FLAGS="-msimd128" \
-            -DCMAKE_CXX_FLAGS="-msimd128" \
-            -DCMAKE_EXE_LINKER_FLAGS="-s USE_WEBGPU=1 -s ASYNCIFY=1 -s ALLOW_MEMORY_GROWTH=1 -s MAXIMUM_MEMORY=4GB -s WASM_BIGINT=1 -s FORCE_FILESYSTEM=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS']"
+            -DCMAKE_C_FLAGS="-pthread -msimd128" \
+            -DCMAKE_CXX_FLAGS="-pthread -msimd128" \
+            -DCMAKE_EXE_LINKER_FLAGS="\
+              -pthread \
+              -s USE_WEBGPU=1 \
+              -s ALLOW_MEMORY_GROWTH=1 \
+              -s MAXIMUM_MEMORY=4GB \
+              -s WASM_BIGINT=1 \
+              -s FORCE_FILESYSTEM=1 \
+              -s PTHREAD_POOL_SIZE=4 \
+              -s PROXY_TO_PTHREAD=1 \
+              -s EXPORTED_RUNTIME_METHODS=ccall,cwrap,FS"
 
           emmake make -j $(nproc)
 
@@ -44,10 +53,10 @@ jobs:
           mkdir -p dist
           find stable-diffusion.cpp/build -type f \( -name "*.wasm" -o -name "*.js" -o -name "*.html" -o -name "*.data" \) -exec cp -v {} dist/ \;
 
-      - name: Upload WebGPU WASM Artifacts
+      - name: Upload WASM Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: stable-diffusion-wasm-webgpu
+          name: stable-diffusion-wasm
           path: dist/
           retention-days: 14
           
