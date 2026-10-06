@@ -1,4 +1,4 @@
-name: Build win-arm64 Application
+name: Build win-arm64 3D App
 
 on:
   
@@ -17,14 +17,14 @@ jobs:
         with:
           arch: arm64
 
-      - name: Compile Standalone Win32 App
+      - name: Compile Win32 OpenGL Application
         run: |
-          cl.exe /O2 /Fe:WineArm64Demo.exe main.c user32.lib /link /SUBSYSTEM:WINDOWS
+          cl.exe /O2 /Fe:WineArm64GL.exe main.c user32.lib gdi32.lib opengl32.lib /link /SUBSYSTEM:WINDOWS
 
-      - name: Upload win-arm64 Binary
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WineArm64Demo
-          path: WineArm64Demo.exe
+          name: WineArm64GL
+          path: WineArm64GL.exe
           retention-days: 7
           
