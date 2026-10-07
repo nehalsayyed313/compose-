@@ -11,21 +11,25 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Install and Run Fastfetch
+      - name: Download and Run Fastfetch Native ARM64
         shell: pwsh
         run: |
-          # 1. Install Fastfetch via WinGet
-          winget install -e --id Fastfetch-cli.Fastfetch --accept-source-agreements --accept-package-agreements --silent
+          # 1. Fetch latest release metadata from GitHub API
+          $headers = @{ "User-Agent" = "GitHubActions-ARM64" }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest" -Headers $headers
 
-          # 2. Refresh PATH from registry so the active PowerShell session sees newly installed binaries
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          # 2. Match the Windows ARM64 zip asset dynamically
+          $asset = $release.assets | Where-Object { $_.name -match "windows.*(aarch64|arm64).*\.zip$" } | Select-Object -First 1
+          Write-Host "Downloading: $($asset.browser_download_url)"
 
-          # 3. Add WinGet's symlink directory to PATH (where CLI shims are stored)
-          $wingetLinks = "$env:LOCALAPPDATA\Microsoft\WinGet\Links"
-          if (Test-Path $wingetLinks) {
-            $env:Path = "$wingetLinks;$env:Path"
-          }
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "$env:RUNNER_TEMP\fastfetch.zip"
 
-          # 4. Execute Fastfetch
-          fastfetch
+          # 3. Extract archive to temp directory
+          Expand-Archive -Path "$env:RUNNER_TEMP\fastfetch.zip" -DestinationPath "$env:RUNNER_TEMP\fastfetch" -Force
+
+          # 4. Locate binary (accounts for any nested subfolders) and execute
+          $fastfetchExe = (Get-ChildItem -Path "$env:RUNNER_TEMP\fastfetch" -Filter "fastfetch.exe" -Recurse | Select-Object -First 1).FullName
+
+          Write-Host "Running $fastfetchExe"
+          & $fastfetchExe
           
