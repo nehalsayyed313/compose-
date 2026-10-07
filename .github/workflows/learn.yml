@@ -1,4 +1,4 @@
-name: FreeBSD CI Build & Test
+name: Test
 
 on:
   workflow_dispatch:
@@ -6,26 +6,19 @@ on:
 
 jobs:
   build:
-    # Fatal fix: vmactions requires Linux to enable KVM hardware acceleration.
-    # Running on Windows hosts causes immediate failure.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
+    container: termux/termux-docker
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Run CI in FreeBSD VM
-        uses: vmactions/freebsd-vm@v1
-        with:
-          release: "15.1"
-          usesh: true
-          # Performance boost 1: Caches VM image after installing packages.
-          # Subsequent runs skip 'prepare' entirely and boot in seconds.
-          cache-after-prepare: true
-          prepare: |
-            pkg update -f
-            pkg install -y gmake gcc
-          run: |
-            # Performance boost 2: Compile in parallel across all allocated CPU cores.
-            gmake -j$(sysctl -n hw.ncpu) test
-            
+
+      - name: running 
+        run: |
+             pkg update -y && pkg upgrade -y
+             pkg install cargo rustc -y
+             cargo --version
+             rustc --version
+      
+        
