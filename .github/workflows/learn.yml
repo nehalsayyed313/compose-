@@ -23,7 +23,7 @@ jobs:
               pkg install -y rust git
               cargo --version
               rustc --version
-              git clone https://github.com/zydou/arti.git
+              git clone --recursive https://github.com/zydou/arti.git
               cd arti
               cargo build -p arti --locked --release
             "
