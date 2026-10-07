@@ -12,19 +12,12 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Setup MSVC for ARM64
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Run CI in FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
         with:
-          arch: arm64
-
-      - name: Compile Win32 OpenGL Application
-        run: |
-          cl.exe /O2 /Fe:WineArm64GL.exe main.c user32.lib gdi32.lib opengl32.lib /link /SUBSYSTEM:WINDOWS
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: WineArm64GL
-          path: WineArm64GL.exe
-          retention-days: 7
-          
+          release: "15.1" # Supports versions 10.4 through 15.1
+          usesh: true     # Runs commands inside the VM shell
+          prepare: |
+            pkg install -y gmake gcc
+          run: |
+            gmake test
