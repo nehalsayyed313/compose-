@@ -13,7 +13,6 @@ jobs:
 
       - name: Build Arti in Termux Docker
         run: |
-          # Eliminate host-container UID permission conflicts on workspace
           chmod -R 777 "${{ github.workspace }}"
 
           docker run --rm \
@@ -23,13 +22,24 @@ jobs:
             sh -c "
               set -e
 
-              # 1. Update package database
+              # 1. Update package lists
               pkg update -y
 
-              # 2. Install Rust, C/C++ build tools, pkg-config, and OpenSSL headers
-              pkg install -y rust git clang make pkg-config openssl binutils
+              # 2. Install Rust, C/C++ toolchain, OpenSSL, and native zstd
+              pkg install -y rust git clang make pkg-config openssl binutils libzstd
 
-              # 3. Explicitly point Cargo and build.rs to Termux's OpenSSL and Clang toolchain
+              # 3. Fix 'Unversioned target triples are not supported' in Bionic sys/cdefs.h
+              export CFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+              export CXXFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+              export TARGET_CFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+              export TARGET_CXXFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+              export CFLAGS_aarch64_linux_android=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+              export CXXFLAGS_aarch64_linux_android=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+
+              # 4. Use Termux's precompiled libzstd to skip building C sources
+              export ZSTD_SYS_USE_PKG_CONFIG=1
+
+              # 5. OpenSSL & Clang paths
               export CC=clang
               export CXX=clang++
               export AR=llvm-ar
@@ -38,15 +48,14 @@ jobs:
               export OPENSSL_INCLUDE_DIR=/data/data/com.termux/files/usr/include
               export OPENSSL_LIB_DIR=/data/data/com.termux/files/usr/lib
 
-              # 4. Clone and build in native Termux internal storage to bypass mount write locks
+              # 6. Build in native storage
               cd /data/data/com.termux/files/home
               git clone --recursive https://github.com/zydou/arti.git
               cd arti
 
-              # 5. Compile release binary
               cargo build -p arti --locked --release
 
-              # 6. Export binary back to GitHub runner workspace
+              # 7. Deliver binary to GitHub workspace
               cp target/release/arti /workspace/
             "
 
