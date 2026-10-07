@@ -1,18 +1,31 @@
-name: Enterprise Build Arti ARM64 (Android NDK)
+name: Fastfetch Windows ARM64
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-android-arm64:
+  run-fastfetch:
     runs-on: windows-11-arm
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      
-      - name: running 
+      - name: Install and Run Fastfetch
+        shell: pwsh
         run: |
-             winget install -e --id Fastfetch-cli.Fastfetch --accept-source-agreements --accept-package-agreements --silent
-             fastfetch
+          # 1. Install Fastfetch via WinGet
+          winget install -e --id Fastfetch-cli.Fastfetch --accept-source-agreements --accept-package-agreements --silent
+
+          # 2. Refresh PATH from registry so the active PowerShell session sees newly installed binaries
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+          # 3. Add WinGet's symlink directory to PATH (where CLI shims are stored)
+          $wingetLinks = "$env:LOCALAPPDATA\Microsoft\WinGet\Links"
+          if (Test-Path $wingetLinks) {
+            $env:Path = "$wingetLinks;$env:Path"
+          }
+
+          # 4. Execute Fastfetch
+          fastfetch
+          
