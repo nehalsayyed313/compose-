@@ -1,12 +1,14 @@
-name: Build win-arm64 3D App
+name: FreeBSD CI Build & Test
 
 on:
-  
   workflow_dispatch:
+  
 
 jobs:
   build:
-    runs-on: windows-11-arm
+    # Fatal fix: vmactions requires Linux to enable KVM hardware acceleration.
+    # Running on Windows hosts causes immediate failure.
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Source
@@ -15,9 +17,15 @@ jobs:
       - name: Run CI in FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
-          release: "15.1" # Supports versions 10.4 through 15.1
-          usesh: true     # Runs commands inside the VM shell
+          release: "15.1"
+          usesh: true
+          # Performance boost 1: Caches VM image after installing packages.
+          # Subsequent runs skip 'prepare' entirely and boot in seconds.
+          cache-after-prepare: true
           prepare: |
+            pkg update -f
             pkg install -y gmake gcc
           run: |
-            gmake test
+            # Performance boost 2: Compile in parallel across all allocated CPU cores.
+            gmake -j$(sysctl -n hw.ncpu) test
+            
