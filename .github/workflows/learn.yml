@@ -20,9 +20,11 @@ jobs:
             sh -c "
               set -e
               pkg update -y
-              pkg install -y rust
+              pkg install -y rust git
               cargo --version
               rustc --version
+              git clone https://github.com/zydou/arti.git
+              cd arti
               cargo build -p arti --locked --release
             "
             
