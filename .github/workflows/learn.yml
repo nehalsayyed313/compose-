@@ -2,23 +2,26 @@ name: Test
 
 on:
   workflow_dispatch:
-  
 
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
-    container: termux/termux-docker
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-
-      - name: running 
+      - name: Run inside Termux Docker
         run: |
-             pkg update -y && pkg upgrade -y
-             pkg install cargo rustc -y
-             cargo --version
-             rustc --version
-      
-        
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            termux/termux-docker:aarch64 \
+            sh -c "
+              set -e
+              pkg update -y
+              pkg install -y rust
+              cargo --version
+              rustc --version
+            "
+            
