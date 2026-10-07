@@ -5,76 +5,14 @@ on:
 
 jobs:
   build-android-arm64:
-    runs-on: ubuntu-latest
+    runs-on: windows-11-arm
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android
-
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-          add-to-path: true
-
-      - name: Install Build Tools & cargo-ndk
+      
+      - name: running 
         run: |
-          sudo apt-get update
-          sudo apt-get install -y perl make cmake
-          cargo install cargo-ndk --locked
-
-      - name: Build Static OpenSSL for Android ARM64
-        run: |
-          echo "=== Cross-compiling OpenSSL with Android NDK ==="
-          git clone --depth 1 --branch openssl-3.2.1 https://github.com/openssl/openssl.git /tmp/openssl-src
-          cd /tmp/openssl-src
-
-          export ANDROID_NDK_ROOT="${ANDROID_NDK_HOME}"
-          export PATH="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
-
-          ./Configure android-arm64 -D__ANDROID_API__=24 no-shared no-tests no-unit-test --prefix="${RUNNER_TEMP}/openssl-arm64"
-          make -j$(nproc)
-          make install_sw
-
-          # Handle lib vs lib64 path variations
-          if [ -d "${RUNNER_TEMP}/openssl-arm64/lib64" ] && [ ! -d "${RUNNER_TEMP}/openssl-arm64/lib" ]; then
-            ln -s lib64 "${RUNNER_TEMP}/openssl-arm64/lib"
-          fi
-          echo "OpenSSL successfully built and installed to ${RUNNER_TEMP}/openssl-arm64"
-
-      - name: Compile Arti with cargo-ndk
-        run: |
-          # Clone target repo if not already present in the workspace
-          if [ ! -f "Cargo.toml" ]; then
-            git clone --recursive https://github.com/zydou/arti.git repo
-            cd repo
-          fi
-
-          # Point cargo's openssl-sys to our precompiled static Android OpenSSL
-          export OPENSSL_DIR="${RUNNER_TEMP}/openssl-arm64"
-          export OPENSSL_STATIC=1
-
-          # Build using cargo-ndk (sets CC, AR, CFLAGS, and target sysroot automatically)
-          cargo ndk -t arm64-v8a -p 24 build -p arti --locked --release
-
-          # Strip debugging symbols with NDK llvm-strip to minimize executable size
-          "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" target/aarch64-linux-android/release/arti
-
-          # Verify the generated binary
-          file target/aarch64-linux-android/release/arti
-
-          # Copy to root workspace for artifact upload
-          cp target/aarch64-linux-android/release/arti "${GITHUB_WORKSPACE}/arti-android-arm64"
-
-      - name: Upload Native Termux/Android Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: arti-android-arm64
-          path: arti-android-arm64
-          if-no-files-found: error
-          
+             winget install -e --id Fastfetch-cli.Fastfetch --accept-source-agreements --accept-package-agreements --silent
+             fastfetch
