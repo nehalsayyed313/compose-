@@ -1,67 +1,80 @@
-name: Build Arti ARM64
+name: Enterprise Build Arti ARM64 (Android NDK)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04-arm
+  build-android-arm64:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Build Arti in Termux Docker
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+          add-to-path: true
+
+      - name: Install Build Tools & cargo-ndk
         run: |
-          chmod -R 777 "${{ github.workspace }}"
+          sudo apt-get update
+          sudo apt-get install -y perl make cmake
+          cargo install cargo-ndk --locked
 
-          docker run --rm \
-            --user root \
-            -v "${{ github.workspace }}:/workspace" \
-            termux/termux-docker:aarch64 \
-            sh -c "
-              set -e
+      - name: Build Static OpenSSL for Android ARM64
+        run: |
+          echo "=== Cross-compiling OpenSSL with Android NDK ==="
+          git clone --depth 1 --branch openssl-3.2.1 https://github.com/openssl/openssl.git /tmp/openssl-src
+          cd /tmp/openssl-src
 
-              # 1. Update package lists
-              pkg update -y
+          export ANDROID_NDK_ROOT="${ANDROID_NDK_HOME}"
+          export PATH="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
 
-              # 2. Install Rust, C/C++ toolchain, OpenSSL, and native zstd
-              pkg install -y rust git clang make pkg-config openssl binutils libzstd
+          ./Configure android-arm64 -D__ANDROID_API__=24 no-shared no-tests no-unit-test --prefix="${RUNNER_TEMP}/openssl-arm64"
+          make -j$(nproc)
+          make install_sw
 
-              # 3. Fix 'Unversioned target triples are not supported' in Bionic sys/cdefs.h
-              export CFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
-              export CXXFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
-              export TARGET_CFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
-              export TARGET_CXXFLAGS=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
-              export CFLAGS_aarch64_linux_android=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
-              export CXXFLAGS_aarch64_linux_android=\"-D__ANDROID_API__=24 --target=aarch64-linux-android24\"
+          # Handle lib vs lib64 path variations
+          if [ -d "${RUNNER_TEMP}/openssl-arm64/lib64" ] && [ ! -d "${RUNNER_TEMP}/openssl-arm64/lib" ]; then
+            ln -s lib64 "${RUNNER_TEMP}/openssl-arm64/lib"
+          fi
+          echo "OpenSSL successfully built and installed to ${RUNNER_TEMP}/openssl-arm64"
 
-              # 4. Use Termux's precompiled libzstd to skip building C sources
-              export ZSTD_SYS_USE_PKG_CONFIG=1
+      - name: Compile Arti with cargo-ndk
+        run: |
+          # Clone target repo if not already present in the workspace
+          if [ ! -f "Cargo.toml" ]; then
+            git clone --recursive https://github.com/zydou/arti.git repo
+            cd repo
+          fi
 
-              # 5. OpenSSL & Clang paths
-              export CC=clang
-              export CXX=clang++
-              export AR=llvm-ar
-              export PKG_CONFIG_PATH=/data/data/com.termux/files/usr/lib/pkgconfig
-              export OPENSSL_DIR=/data/data/com.termux/files/usr
-              export OPENSSL_INCLUDE_DIR=/data/data/com.termux/files/usr/include
-              export OPENSSL_LIB_DIR=/data/data/com.termux/files/usr/lib
+          # Point cargo's openssl-sys to our precompiled static Android OpenSSL
+          export OPENSSL_DIR="${RUNNER_TEMP}/openssl-arm64"
+          export OPENSSL_STATIC=1
 
-              # 6. Build in native storage
-              cd /data/data/com.termux/files/home
-              git clone --recursive https://github.com/zydou/arti.git
-              cd arti
+          # Build using cargo-ndk (sets CC, AR, CFLAGS, and target sysroot automatically)
+          cargo ndk -t arm64-v8a -p 24 build -p arti --locked --release
 
-              cargo build -p arti --locked --release
+          # Strip debugging symbols with NDK llvm-strip to minimize executable size
+          "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" target/aarch64-linux-android/release/arti
 
-              # 7. Deliver binary to GitHub workspace
-              cp target/release/arti /workspace/
-            "
+          # Verify the generated binary
+          file target/aarch64-linux-android/release/arti
 
-      - name: Upload Artifact
+          # Copy to root workspace for artifact upload
+          cp target/aarch64-linux-android/release/arti "${GITHUB_WORKSPACE}/arti-android-arm64"
+
+      - name: Upload Native Termux/Android Binary
         uses: actions/upload-artifact@v4
         with:
-          name: arti-termux-arm64
-          path: arti
+          name: arti-android-arm64
+          path: arti-android-arm64
+          if-no-files-found: error
           
