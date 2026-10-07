@@ -13,18 +13,34 @@ jobs:
 
       - name: Run inside Termux Docker
         run: |
+          # Ensure runner workspace has full read/write permissions for container users
+          chmod -R 777 "${{ github.workspace }}"
+
           docker run --rm \
+            --user root \
             -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
+            -w /data/data/com.termux/files/home \
             termux/termux-docker:aarch64 \
             sh -c "
               set -e
               pkg update -y
               pkg install -y rust git
+
               cargo --version
               rustc --version
+
+              # Clone and build inside Termux native home directory
               git clone --recursive https://github.com/zydou/arti.git
               cd arti
               cargo build -p arti --locked --release
+
+              # Copy the compiled executable back to GitHub workspace
+              cp target/release/arti /workspace/
             "
-            
+
+      - name: Upload Built Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arti-termux-arm64
+          path: arti
+          
