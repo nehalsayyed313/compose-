@@ -1,4 +1,4 @@
-name: Test
+name: Build Arti ARM64
 
 on:
   workflow_dispatch:
@@ -11,34 +11,46 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Run inside Termux Docker
+      - name: Build Arti in Termux Docker
         run: |
-          # Ensure runner workspace has full read/write permissions for container users
+          # Eliminate host-container UID permission conflicts on workspace
           chmod -R 777 "${{ github.workspace }}"
 
           docker run --rm \
             --user root \
             -v "${{ github.workspace }}:/workspace" \
-            -w /data/data/com.termux/files/home \
             termux/termux-docker:aarch64 \
             sh -c "
               set -e
+
+              # 1. Update package database
               pkg update -y
-              pkg install -y rust git
 
-              cargo --version
-              rustc --version
+              # 2. Install Rust, C/C++ build tools, pkg-config, and OpenSSL headers
+              pkg install -y rust git clang make pkg-config openssl binutils
 
-              # Clone and build inside Termux native home directory
+              # 3. Explicitly point Cargo and build.rs to Termux's OpenSSL and Clang toolchain
+              export CC=clang
+              export CXX=clang++
+              export AR=llvm-ar
+              export PKG_CONFIG_PATH=/data/data/com.termux/files/usr/lib/pkgconfig
+              export OPENSSL_DIR=/data/data/com.termux/files/usr
+              export OPENSSL_INCLUDE_DIR=/data/data/com.termux/files/usr/include
+              export OPENSSL_LIB_DIR=/data/data/com.termux/files/usr/lib
+
+              # 4. Clone and build in native Termux internal storage to bypass mount write locks
+              cd /data/data/com.termux/files/home
               git clone --recursive https://github.com/zydou/arti.git
               cd arti
+
+              # 5. Compile release binary
               cargo build -p arti --locked --release
 
-              # Copy the compiled executable back to GitHub workspace
+              # 6. Export binary back to GitHub runner workspace
               cp target/release/arti /workspace/
             "
 
-      - name: Upload Built Binary Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: arti-termux-arm64
