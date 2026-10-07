@@ -23,5 +23,6 @@ jobs:
               pkg install -y rust
               cargo --version
               rustc --version
+              cargo build -p arti --locked --release
             "
             
