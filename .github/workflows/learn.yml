@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Clone Repo and Build
         run: |
-          git clone https://github.com/jigarius/docker-rails-example.git
+          git clone --depth 1 https://github.com/nickjj/docker-rails-example.git
           cd docker-rails-example
-          docker compose build
+          docker build -t rail .
           
