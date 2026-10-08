@@ -5,31 +5,15 @@ on:
 
 jobs:
   run-fastfetch:
-    runs-on: windows-11-arm
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
       - name: Download and Run Fastfetch Native ARM64
-        shell: pwsh
+        
         run: |
-          # 1. Fetch latest release metadata from GitHub API
-          $headers = @{ "User-Agent" = "GitHubActions-ARM64" }
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest" -Headers $headers
-
-          # 2. Match the Windows ARM64 zip asset dynamically
-          $asset = $release.assets | Where-Object { $_.name -match "windows.*(aarch64|arm64).*\.zip$" } | Select-Object -First 1
-          Write-Host "Downloading: $($asset.browser_download_url)"
-
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "$env:RUNNER_TEMP\fastfetch.zip"
-
-          # 3. Extract archive to temp directory
-          Expand-Archive -Path "$env:RUNNER_TEMP\fastfetch.zip" -DestinationPath "$env:RUNNER_TEMP\fastfetch" -Force
-
-          # 4. Locate binary (accounts for any nested subfolders) and execute
-          $fastfetchExe = (Get-ChildItem -Path "$env:RUNNER_TEMP\fastfetch" -Filter "fastfetch.exe" -Recurse | Select-Object -First 1).FullName
-
-          Write-Host "Running $fastfetchExe"
-          & $fastfetchExe
-          
+             git clone https://github.com/jigarius/docker-rails-example.git
+             cd docker-rails-example
+             docker-compose build
