@@ -1,19 +1,16 @@
-name: Fastfetch Windows ARM64
+name: Build Docker Compose Project
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-fastfetch:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Download and Run Fastfetch Native ARM64
-        
+      - name: Clone Repo and Build
         run: |
-             git clone https://github.com/jigarius/docker-rails-example.git
-             cd docker-rails-example
-             docker-compose build
+          git clone https://github.com/jigarius/docker-rails-example.git
+          cd docker-rails-example
+          docker compose build
+          
