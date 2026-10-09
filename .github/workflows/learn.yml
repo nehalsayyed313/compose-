@@ -1,4 +1,4 @@
-name: Build Docker Compose Project
+name: Build
 
 on:
   workflow_dispatch:
@@ -10,7 +10,8 @@ jobs:
     steps:
       - name: Clone Repo and Build
         run: |
-          git clone --depth 1 https://github.com/nickjj/docker-rails-example.git
-          cd docker-rails-example
-          docker build -t rail .
-          
+          git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
+          cd llama.cpp
+          cmake -GNinja -B build
+          ninja -C build
+
