@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout Gophish repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: gophish/gophish
           ref: ${{ inputs.gophish_ref }}
