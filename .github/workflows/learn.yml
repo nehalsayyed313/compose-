@@ -1,17 +1,62 @@
-name: Build
+name: Build Gophish (Alpine ARM64)
 
 on:
   workflow_dispatch:
+    inputs:
+      go_version:
+        description: "Go Alpine Docker image tag"
+        required: false
+        default: "1.22"
+        type: string
 
 jobs:
   build:
+    name: Build for Alpine ARM64
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clone Repo and Build
-        run: |
-          git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
-          cd llama.cpp
-          cmake -GNinja -B build
-          ninja -C build
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Compile Gophish inside Alpine ARM64 Container
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            golang:${{ inputs.go_version }}-alpine \
+            sh -eux -c "
+              apk add --no-cache gcc musl-dev git
+              CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v \
+                -ldflags '-s -w -extldflags \"-static\"' \
+                -o gophish
+              chmod +x gophish
+            "
+
+      - name: Verify Binary
+        run: |
+          file gophish
+
+      - name: Package Bundle
+        run: |
+          mkdir -p dist
+          # Gophish requires web assets, migrations, and templates alongside the binary
+          tar -czvf dist/gophish-alpine-arm64.tar.gz \
+            gophish \
+            config.json \
+            templates \
+            static \
+            db
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gophish-alpine-arm64
+          path: dist/gophish-alpine-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+          
