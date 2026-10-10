@@ -3,6 +3,11 @@ name: Build Gophish (Alpine ARM64)
 on:
   workflow_dispatch:
     inputs:
+      gophish_ref:
+        description: "Gophish Git Branch or Tag (e.g., v0.12.1, master)"
+        required: false
+        default: "v0.12.1"
+        type: string
       go_version:
         description: "Go Alpine Docker image tag"
         required: false
@@ -15,8 +20,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Gophish repository
         uses: actions/checkout@v4
+        with:
+          repository: gophish/gophish
+          ref: ${{ inputs.gophish_ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -44,7 +52,6 @@ jobs:
       - name: Package Bundle
         run: |
           mkdir -p dist
-          # Gophish requires web assets, migrations, and templates alongside the binary
           tar -czvf dist/gophish-alpine-arm64.tar.gz \
             gophish \
             config.json \
