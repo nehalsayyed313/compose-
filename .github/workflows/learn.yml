@@ -1,47 +1,32 @@
-name: Build
+name: Build Standalone WASM
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build and Upload WASM
+    name: Build WASM
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: latest
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Build WASM Project
+      - name: Install wasm-pack (Prebuilt Binary)
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Clone and Build Standalone WASM
         run: |
           git clone --depth 1 --recursive https://codeberg.org/chrislanejones/rust-wasm-photo-tool.git
           cd rust-wasm-photo-tool
-          cargo install wasm-pack --version 0.15.0 --locked
-          pnpm install
-          pnpm run build:wasm
+          wasm-pack build --target web --release
 
-      - name: Upload WASM Artifacts
+      - name: Upload WASM Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wasm-build-output
-          path: |
-            rust-wasm-photo-tool/pkg/
-            rust-wasm-photo-tool/**/*.wasm
-          if-no-files-found: error
+          name: stamp-tool-wasm
+          path: rust-wasm-photo-tool/pkg/
           retention-days: 7
           
