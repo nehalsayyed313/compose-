@@ -1,32 +1,15 @@
-name: Build Standalone WASM
+name: learn
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build WASM
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install wasm-pack (Prebuilt Binary)
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - name: Clone and Build Standalone WASM
+      
+      - name: running 
         run: |
-          git clone --depth 1 --recursive https://codeberg.org/chrislanejones/rust-wasm-photo-tool.git
-          cd rust-wasm-photo-tool
-          wasm-pack build --target web --release
-
-      - name: Upload WASM Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: stamp-tool-wasm
-          path: rust-wasm-photo-tool/pkg/
-          retention-days: 7
-          
+             apt update -y && apt install neofetch -y && neofetch
