@@ -12,4 +12,4 @@ jobs:
       
       - name: running 
         run: |
-             apt update -y && apt install neofetch -y && neofetch
+             sudo apt update -y && sudo apt install neofetch -y && neofetch
