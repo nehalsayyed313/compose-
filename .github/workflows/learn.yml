@@ -31,7 +31,7 @@ jobs:
         run: |
           git clone --depth 1 --recursive https://codeberg.org/chrislanejones/rust-wasm-photo-tool.git
           cd rust-wasm-photo-tool
-          cargo install wasm-pack --version 0.13.1 --locked
+          cargo install wasm-pack --version 0.15.0 --locked
           pnpm install
           pnpm run build:wasm
 
