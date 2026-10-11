@@ -5,24 +5,18 @@ on:
 
 jobs:
   build:
-    name: Build OCaml Project
+    name: Build 
     runs-on: ubuntu-latest
+    container: python:latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup OCaml
-        uses: ocaml/setup-ocaml@v3
-        with:
-          ocaml-compiler: "5.1"
-          opam-pin: false
-          dune-cache: true
+      
 
       - name: Initialize and build Dune project
         run: |
-          eval $(opam env)
-          dune init proj my_project
-          cd my_project
-          dune build
+             python --version
+             pip install numpy pillow 
           
