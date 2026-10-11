@@ -17,7 +17,7 @@ jobs:
 
       - name: Compile Gophish inside Alpine ARM64 Container
         run: |
-            npx create-astro@latest myapp --template basics --install --no-git --yes --skip-houston
+            npx create-next-app@latest myapp -y
             cd myapp
             ls
             npm i
