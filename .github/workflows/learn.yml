@@ -1,29 +1,28 @@
-name: Build 
+name: Build
 
 on:
   workflow_dispatch:
 
-
 jobs:
   build:
-    name: Build 
-    
+    name: Build OCaml Project
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Gophish repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: setopam
+      - name: Setup OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "5.1" # Change to your preferred OCaml version
-          opam-pin: true        # Automatically pins local package definitions (.opam files)
-          cache: true
-        
+          ocaml-compiler: "5.1"
+          opam-pin: false
+          dune-cache: true
 
-      - name: Compile Gophish inside Alpine ARM64 Container
+      - name: Initialize and build Dune project
         run: |
-            opam exec -- dune init proj my_project
-            cd my_project
-            opam build
+          eval $(opam env)
+          dune init proj my_project
+          cd my_project
+          dune build
+          
