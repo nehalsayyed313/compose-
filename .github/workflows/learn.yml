@@ -13,4 +13,4 @@ jobs:
       
       - name: running 
         run: |
-             apk update && app add fastfetch && fastfetch
+             apk update && apk add fastfetch && fastfetch
