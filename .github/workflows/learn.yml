@@ -6,11 +6,11 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: windows-11-arm
+    runs-on: macos-latest
 
     steps:
       
       - name: running 
         run: |
-             choco install fastfetch -y
+             brew install fastfetch -y
              fastfetch
