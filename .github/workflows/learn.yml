@@ -12,5 +12,5 @@ jobs:
       
       - name: running 
         run: |
-             choco install fastfetc -y
+             choco install fastfetch -y
              fastfetch
