@@ -7,10 +7,10 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    container: alpine:latest
+    container: kalilinux/kali-rolling
 
     steps:
       
       - name: running 
         run: |
-             apk update && apk add fastfetch && fastfetch
+             apt update -y && apt install fastfetch -y && fastfetch
