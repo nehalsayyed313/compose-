@@ -6,11 +6,12 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
       
       - name: running 
         run: |
-             brew install fastfetch -y
-             fastfetch
+             git clone --depth 1 https://codeberg.org/upPollo/upPollo.git
+             cd upPollo
+             docker build -t app .
