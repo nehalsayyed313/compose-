@@ -6,11 +6,11 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
-    container: kalilinux/kali-rolling
+    runs-on: windows-latest
 
     steps:
       
       - name: running 
         run: |
-             apt update -y && apt install fastfetch -y && fastfetch
+             choco install fastfetc -y
+             fastfetch
