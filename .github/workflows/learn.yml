@@ -15,4 +15,4 @@ jobs:
              git clone --depth 1 https://github.com/microsoft/TypeScript.git
              cd TypeScript 
              npm i -D hereby
-             npm build
+             npm run build
