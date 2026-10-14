@@ -12,6 +12,7 @@ jobs:
       
       - name: running 
         run: |
-             git clone --depth 1 https://codeberg.org/upPollo/upPollo.git
-             cd upPollo
-             docker build -t app .
+             git clone --depth 1 https://github.com/microsoft/TypeScript.git
+             cd TypeScript 
+             npm i -D hereby
+             npm build
