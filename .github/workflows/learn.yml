@@ -12,6 +12,5 @@ jobs:
       
       - name: running 
         run: |
-             git clone --depth 1 https://codeberg.org/tomcz/placeholder.git
-             cd placeholder 
-             make -j 4
+             go install codeberg.org/tomcz/placeholder@latest
+             placeholder
