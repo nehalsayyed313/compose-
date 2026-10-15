@@ -12,7 +12,6 @@ jobs:
       
       - name: running 
         run: |
-             git clone --depth 1 https://github.com/microsoft/TypeScript.git
-             cd TypeScript 
-             npm i -D hereby
-             npm run build
+             git clone --depth 1 https://codeberg.org/shsiddhant/gotiny.git
+             cd gotiny
+             go build
