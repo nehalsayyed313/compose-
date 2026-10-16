@@ -12,8 +12,6 @@ jobs:
       
       - name: running 
         run: |
-             npm create vite@latest mapp -- --template react
-             cd mapp 
-             npm i
-             npm run build 
-             ls
+             git clone --depth 1 https://github.com/digitallysavvy/go-ai.git
+             cd go-ai
+             go build
