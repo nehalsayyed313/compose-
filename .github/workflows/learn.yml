@@ -14,5 +14,5 @@ jobs:
         run: |
              git clone --depth 1 https://codeberg.org/projectfile/cli.git
              cd cli 
-             docker build -t app .
-             docker run app
+             make -j 4
+             ls
