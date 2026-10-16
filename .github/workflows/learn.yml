@@ -14,4 +14,4 @@ jobs:
         run: |
              git clone --depth 1 https://github.com/mudler/LocalAI.git
              cd LocalAI
-             make -j 4
+             docker build -t app .
