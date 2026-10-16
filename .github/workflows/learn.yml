@@ -12,6 +12,9 @@ jobs:
       
       - name: running 
         run: |
-             git clone --depth 1 https://github.com/mudler/LocalAI.git
-             cd LocalAI
-             docker build -t app .
+             npm create vite@latest mapp -- --template anguler
+             cd mapp
+             npm i
+             ls
+             npm run build
+             ls
