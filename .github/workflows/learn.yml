@@ -12,7 +12,8 @@ jobs:
       
       - name: running 
         run: |
-             git clone --depth 1 https://codeberg.org/projectfile/cli.git
-             cd cli 
-             make -j 4
+             npm create vite@latest mapp -- --template react
+             cd mapp 
+             npm i
+             npm run build 
              ls
