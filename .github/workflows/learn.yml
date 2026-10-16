@@ -14,4 +14,4 @@ jobs:
         run: |
              git clone --depth 1 https://github.com/mudler/LocalAI.git
              cd LocalAI
-             go build
+             make -j 4
