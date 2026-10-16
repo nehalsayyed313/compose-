@@ -12,6 +12,6 @@ jobs:
       
       - name: running 
         run: |
-             git clone --depth 1 https://github.com/digitallysavvy/go-ai.git
-             cd go-ai
+             git clone --depth 1 https://github.com/mudler/LocalAI.git
+             cd LocalAI
              go build
