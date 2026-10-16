@@ -12,5 +12,7 @@ jobs:
       
       - name: running 
         run: |
-             go install codeberg.org/tomcz/placeholder@latest
-             placeholder
+             git clone --depth 1 https://codeberg.org/projectfile/cli.git
+             cd cli 
+             docker build -t app .
+             docker run app
