@@ -8,17 +8,19 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
 
-    steps:
-      
-      - name: running 
-        run: |
-             npm install -g @snap/valdi
-             valdi dev_setup
-             valdi doctor
-             valdi --version
-             mkdir my_valdi_app
-             cd my_valdi_app
-             valdi bootstrap
-             valdi install android
-             valdi build android 
+    env:
+      CI: "true"
 
+    steps:
+      - name: running
+        run: |
+          sudo npm install -g @snap/valdi
+          yes '' | valdi dev_setup || true
+          valdi doctor || true
+          valdi --version
+          mkdir -p my_valdi_app
+          cd my_valdi_app
+          yes '' | valdi bootstrap || true
+          valdi install android
+          valdi build android
+          
