@@ -12,9 +12,13 @@ jobs:
       
       - name: running 
         run: |
-             npm create vite@latest mapp -- --template anguler
-             cd mapp
-             npm i
-             ls
-             npm run build
-             ls
+             npm install -g @snap/valdi
+             valdi dev_setup
+             valdi doctor
+             valdi --version
+             mkdir my_valdi_app
+             cd my_valdi_app
+             valdi bootstrap
+             valdi install android
+             valdi build android 
+
