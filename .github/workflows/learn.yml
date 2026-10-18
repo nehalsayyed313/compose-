@@ -14,13 +14,7 @@ jobs:
     steps:
       - name: running
         run: |
-          sudo npm install -g @snap/valdi
-          yes '' | valdi dev_setup || true
-          valdi doctor || true
-          valdi --version
-          mkdir -p my_valdi_app
-          cd my_valdi_app
-          yes '' | valdi bootstrap || true
-          valdi install android
-          valdi build android
+          npx ns create my-mobile-app --tsc --no-interactive
+          cd my-mobile-app
+          npx ns build android --release --copy-to ../app-release.apk
           
