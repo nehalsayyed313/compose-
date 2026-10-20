@@ -13,11 +13,7 @@ jobs:
     steps:
       - name: running
         run: |
-          git clone --depth 1 --recursive https://github.com/Effect-TS/effect.git
-          cd effect 
-          npm i -g pnpm
-          pnpm install 
-          npm run build
-          ls
-          
+          git clone --depth 1 --recursive https://github.com/SubtitleEdit/subtitleedit.git
+          subtitleedit
+          dotnet build          
           
