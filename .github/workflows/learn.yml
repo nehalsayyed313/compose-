@@ -15,7 +15,8 @@ jobs:
         run: |
           git clone --depth 1 --recursive https://github.com/Effect-TS/effect.git
           cd effect 
-          npm i
+          npm i -g pnpm
+          pnpm install 
           npm run build
           ls
           
