@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: running
         run: |
-          git clone --depth 1 --recursive https://github.com/SubtitleEdit/subtitleedit.git
-          subtitleedit
+          git clone --depth 1 --recursive https://github.com/files-community/Files.git
+          cd Files
           dotnet build          
           
