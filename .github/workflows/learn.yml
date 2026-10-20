@@ -13,9 +13,10 @@ jobs:
     steps:
       - name: running
         run: |
-          git clone --recursive https://github.com/sigoden/aichat.git
-          cd aichat
-          cargo build --release
+          git clone --depth 1 --recursive https://github.com/Effect-TS/effect.git
+          cd effect 
+          npm i
+          npm run build
           ls
           
           
