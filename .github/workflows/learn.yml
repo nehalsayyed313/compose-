@@ -6,15 +6,12 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     
 
     steps:
       - name: running
         run: |
-          git clone --depth 1 --recursive https://github.com/files-community/Files.git
-          cd Files
-          dotnet restore
-          dotnet build --configuration Release          
-          
+          sudo apt update -y && sudo apt install neofetch -y
+          neofetch
