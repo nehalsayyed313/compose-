@@ -13,5 +13,6 @@ jobs:
     steps:
       - name: running
         run: |
-          sudo apt update -y && sudo apt install neofetch -y
-          neofetch
+          git clone --depth 1 https://github.com/JetBrains/sample_rails_app.git
+          cd sample_rails_app
+          docker build -t app .
