@@ -1,21 +1,32 @@
-name: learn
+name: Build JupyterLite
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build
     runs-on: ubuntu-latest
-
-    
-
     steps:
-      - name: running
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools and WebAssembly kernel
         run: |
-          git clone --depth 1 --recursive https://github.com/capstone-engine/capstone.git
-          cd capstone
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCAPSTONE_BUILD_SHARED_LIBS=1 -DCMAKE_INSTALL_PREFIX=/usr
-          cmake --build build
-          cd build
-          cpack -G DEB
+          python -m pip install --upgrade pip
+          python -m pip install jupyterlite-core jupyterlite-pyodide-kernel jupyterlab
+
+      - name: Build static WASM site
+        run: |
+          jupyter lite build --output-dir dist
+
+      - name: Upload output artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jupyterlite-static-site
+          path: dist
+          
