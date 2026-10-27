@@ -13,6 +13,9 @@ jobs:
     steps:
       - name: running
         run: |
-          git clone --depth 1 https://github.com/JetBrains/sample_rails_app.git
-          cd sample_rails_app
-          docker build -t app .
+          git clone --depth 1 --recursive https://github.com/capstone-engine/capstone.git
+          cd capstone
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCAPSTONE_BUILD_SHARED_LIBS=1 -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build
+          cd build
+          cpack -G DEB
