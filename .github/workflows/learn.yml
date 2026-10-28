@@ -10,9 +10,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          # Optional: Defaults to the 'minimum_zig_version' in your build.zig.zon 
+          # or the latest stable version if not specified.
+          zig-version: 0.16.0 
+
       - name: Install build tools and WebAssembly kernel
         run: |
-             git clone --depth 1 --recursive https://codeberg.org/SebastianRzk/Looksyk.git
-             cd Looksyk
-             chmod +x build.sh
-             ./build.sh
+             git clone --depth 1 --recursive https://codeberg.org/Logickin-Lambda/nova-midi.git
+             cd nova-midi
+             zig fetch --save git+https://codeberg.org/Logickin-Lambda/nova-midi
+             zig build 
