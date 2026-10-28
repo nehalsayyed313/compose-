@@ -13,11 +13,19 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          # Automatically detects and pins the version from your go.mod file
-          go-version-file: '1.26'
+          go-version: 'stable' # or specify an exact version like '1.24'
+          check-latest: true
 
-      - name: Install build tools and WebAssembly kernel
+      - name: Build Caddy
         run: |
-             git clone --depth 1 --recursive https://github.com/caddyserver/caddy.git
-             cd caddy 
-             go build -v
+          git clone --depth 1 --recursive https://github.com/caddyserver/caddy.git
+          cd caddy
+          # Build the main CLI entrypoint
+          go build -v -trimpath -ldflags="-s -w" ./cmd/caddy
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: caddy-macos
+          path: caddy/caddy
+          
