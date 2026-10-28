@@ -5,27 +5,24 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable' # or specify an exact version like '1.24'
-          check-latest: true
+        
+        
+      - name: setup rust
+        uses: actions-rust-lang/setup-rust-toolchain@v2
 
       - name: Build Caddy
         run: |
-          git clone --depth 1 --recursive https://github.com/caddyserver/caddy.git
-          cd caddy
-          # Build the main CLI entrypoint
-          go build -v -trimpath -ldflags="-s -w" ./cmd/caddy
+          git clone --depth 1 --recursive https://github.com/wie-project/kakehashi.git
+          cd kakehashi
+          cargo build --release
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: caddy-macos
-          path: caddy/caddy
+          name: kakehashi
+          path: kakehashi/target/release 
           
