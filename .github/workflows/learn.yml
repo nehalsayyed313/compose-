@@ -19,7 +19,6 @@ jobs:
 
       - name: Install build tools and WebAssembly kernel
         run: |
-             git clone --depth 1 --recursive https://codeberg.org/Logickin-Lambda/nova-midi.git
-             cd nova-midi
-             zig fetch --save git+https://codeberg.org/Logickin-Lambda/nova-midi
-             zig build 
+             git clone --depth 1 --recursive https://github.com/caddyserver/caddy.git
+             cd caddy 
+             go build -v
