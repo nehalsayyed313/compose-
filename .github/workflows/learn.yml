@@ -10,6 +10,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # Automatically detects and pins the version from your go.mod file
+          go-version-file: 'go.mod'
+
       - name: Install build tools and WebAssembly kernel
         run: |
              git clone --depth 1 --recursive https://github.com/caddyserver/caddy.git
