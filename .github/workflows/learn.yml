@@ -5,17 +5,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          # Optional: Defaults to the 'minimum_zig_version' in your build.zig.zon 
-          # or the latest stable version if not specified.
-          zig-version: 0.16.0 
 
       - name: Install build tools and WebAssembly kernel
         run: |
