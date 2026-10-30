@@ -14,7 +14,6 @@ jobs:
       
       - name: Running build
         run: |
-             git clone --depth 1 https://github.com/arthenica/ffmpeg-kit.git
-             cd ffmpeg-kit
-             chmod +x android.sh
-             ./android.sh
+             git clone --depth 1 https://codeberg.org/curl/curl-mirror.git
+             cd curl-mirror
+             docker build -t curl .
