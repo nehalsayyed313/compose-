@@ -18,7 +18,7 @@ jobs:
             tar \
             ca-certificates
 
-          # 1. Official Ookla Speedtest Standalone Binary (bypasses APT repo)
+          # 1. Official Ookla Speedtest Standalone Binary
           curl -sL https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-x86_64.tgz | \
             sudo tar -xz -C /usr/local/bin speedtest
           sudo chmod +x /usr/local/bin/speedtest
@@ -50,13 +50,15 @@ jobs:
           aria2c \
             -s 16 \
             -x 16 \
-            -k 1M \
-            --dir=/tmp \
-            --out=speedtest_dump \
+            -k 2M \
+            --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+            --dir=/dev/shm \
+            --out=speedtest_dump.bin \
             --allow-overwrite=true \
-            https://speed.cloudflare.com/__down?bytes=1073741824
+            --summary-interval=1 \
+            https://ash-speed.hetzner.com/10GB.bin
 
-          rm -f /tmp/speedtest_dump
+          rm -f /dev/shm/speedtest_dump.bin
 
       - name: Runner Network Interface Info
         run: |
