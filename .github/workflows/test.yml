@@ -1,158 +1,69 @@
-name: Build Minimal x86_64 Distro
+name: Benchmark Runner Network Speed
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-distro:
+  network-benchmark:
+    # You can switch to larger runners (e.g. ubuntu-24.04-arm, or larger paid runners) to compare
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Install Build and Emulation Tools
+      - name: Install Benchmark Tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            busybox-static \
-            cpio \
-            qemu-system-x86 \
-            seabios \
-            ipxe-qemu \
-            binutils \
-            file
+            curl \
+            wget \
+            aria2 \
+            python3 \
+            python3-pip
 
-      - name: Assemble Minimal RootFS, Libc, and Shell
+          # Official Ookla Speedtest binary
+          curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
+          sudo apt-get install -y speedtest
+
+          # Fast.com CLI (Go binary)
+          wget -q https://github.com/ddo/fast/releases/latest/download/fast_linux_amd64 -O fast
+          chmod +x fast
+          sudo mv fast /usr/local/bin/
+
+      - name: Run Ookla Multi-Stream Benchmark
         run: |
-          set -ex
-
-          WORK_DIR="${{ github.workspace }}/distro-build"
-          ROOTFS="$WORK_DIR/rootfs"
-          OUTPUT="$WORK_DIR/output"
-
-          rm -rf "$WORK_DIR"
-          mkdir -p "$ROOTFS"/{bin,sbin,usr/bin,usr/sbin,proc,sys,dev,tmp,root,lib,lib64,etc}
-          mkdir -p "$OUTPUT"
-
-          # 1. Install Static BusyBox Binary
-          BUSYBOX_BIN=$(command -v busybox)
-          cp -a "$BUSYBOX_BIN" "$ROOTFS/bin/busybox"
-          chmod 755 "$ROOTFS/bin/busybox"
-
-          # 2. Generate Relative Symlinks (explicitly skip 'busybox' to prevent ELOOP circular symlink)
-          cd "$ROOTFS/bin"
-          for applet in $(./busybox --list); do
-            if [ "$applet" != "busybox" ]; then
-              ln -sf busybox "$applet"
-            fi
-          done
-          ln -sf busybox sh
-          cd "$WORK_DIR"
-
-          # 3. Assert binary and shell integrity
-          test -f "$ROOTFS/bin/busybox" && test ! -L "$ROOTFS/bin/busybox"
-          test -L "$ROOTFS/bin/sh"
-
-          # 4. Copy Libc and Dynamic Linker for runtime compatibility
-          mkdir -p "$ROOTFS/lib/x86_64-linux-gnu"
-          cp -aL /lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/" 2>/dev/null || cp -aL /usr/lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/"
-          cp -aL /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/x86_64-linux-gnu/"
-          ln -sf /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/libc.so.6"
-          ln -sf /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib64/libc.so.6"
-
-          # 5. Create Static Core Device Nodes
-          sudo mknod -m 600 "$ROOTFS/dev/console" c 5 1
-          sudo mknod -m 666 "$ROOTFS/dev/null" c 1 3
-          sudo mknod -m 666 "$ROOTFS/dev/tty" c 5 0
-
-          # 6. Construct PID 1 Init System
-          cat << 'EOF' > "$ROOTFS/init"
-          #!/bin/sh
-          mount -t proc proc /proc
-          mount -t sysfs sysfs /sys
-          mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
-
-          # Direct all I/O to controlling console
-          exec 0</dev/console
-          exec 1>/dev/console
-          exec 2>/dev/console
-
-          export PATH=/bin:/sbin:/usr/bin:/usr/sbin
-          export HOME=/root
-
           echo "=================================================="
-          echo "         MINIMAL x86_64 LINUX DISTRO ONLINE       "
-          echo "   Kernel: $(uname -r) ($(uname -m))              "
-          echo "   Shell:  BusyBox (/bin/sh)                      "
+          echo "         OOKLA SPEEDTEST BENCHMARK                "
           echo "=================================================="
+          # Accept Ookla EULA non-interactively and run verbose benchmark
+          speedtest --accept-license --accept-gdpr -f human-readable
 
-          if grep -q "customdistro.autotest" /proc/cmdline; then
-              echo "[SELF-TEST] Init script and shell active. Powering off."
-              poweroff -f
-          fi
-
-          # Interactive session with terminal job control
-          setsid cttyhack /bin/sh
-          poweroff -f
-          EOF
-
-          chmod 755 "$ROOTFS/init"
-
-          # 7. Pack RootFS into CPIO initramfs
-          cd "$ROOTFS"
-          find . -print0 | cpio --null -ov --format=newc | gzip -9 > "$OUTPUT/initramfs.cpio.gz"
-          cd "$WORK_DIR"
-
-          # 8. Extract Kernel
-          KERNEL_BIN=$(ls -1 /boot/vmlinuz-* 2>/dev/null | grep -v 'old' | head -n 1)
-          if [ -z "$KERNEL_BIN" ]; then
-            KERNEL_BIN="/boot/vmlinuz"
-          fi
-
-          sudo cp -L "$KERNEL_BIN" "$OUTPUT/vmlinuz"
-          sudo chown -R "$USER:$USER" "$WORK_DIR"
-          chmod 644 "$OUTPUT/vmlinuz"
-
-          # 9. Standalone Local Runner Script
-          cat << 'EOF' > "$OUTPUT/run-distro.sh"
-          #!/bin/sh
-          qemu-system-x86_64 \
-            -m 256M \
-            -kernel vmlinuz \
-            -initrd initramfs.cpio.gz \
-            -append "console=ttyS0 quiet" \
-            -nographic
-          EOF
-          chmod +x "$OUTPUT/run-distro.sh"
-
-          echo "Build complete."
-          ls -lh "$OUTPUT"
-
-      - name: Verify Components
+      - name: Run Fast.com (Netflix CDN) Benchmark
         run: |
-          OUTPUT="${{ github.workspace }}/distro-build/output"
-          file "$OUTPUT/vmlinuz"
-          file "$OUTPUT/initramfs.cpio.gz"
+          echo "=================================================="
+          echo "         FAST.COM CDN THROUGHPUT                  "
+          echo "=================================================="
+          fast
 
-      - name: Smoke-Test Distro Boot in QEMU
+      - name: Maximize Parallel Downlink (aria2c - 16 Connections)
         run: |
-          OUTPUT="${{ github.workspace }}/distro-build/output"
+          echo "=================================================="
+          echo "   PARALLEL TCP STREAM TEST (16 Connections)      "
+          echo "=================================================="
+          # Pulls a 1GB test file directly into /dev/null to measure pure network interface speed
+          aria2c \
+            -s 16 \
+            -x 16 \
+            -k 1M \
+            --dir=/tmp \
+            --out=speedtest_dump \
+            --allow-overwrite=true \
+            https://speed.cloudflare.com/__down?bytes=1073741824
 
-          echo "Booting distro in headless QEMU..."
-          timeout 20s qemu-system-x86_64 \
-            -m 256M \
-            -kernel "$OUTPUT/vmlinuz" \
-            -initrd "$OUTPUT/initramfs.cpio.gz" \
-            -append "console=ttyS0 panic=1 customdistro.autotest quiet" \
-            -nographic \
-            -no-reboot | tee boot.log
+          rm -f /tmp/speedtest_dump
 
-          grep -q "MINIMAL x86_64 LINUX DISTRO ONLINE" boot.log
-          echo "PASS: Distro booted, /init executed, and self-test verified."
-
-      - name: Upload Distro Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: minimal-x86_64-distro-${{ github.run_number }}
-          path: distro-build/output/
-          retention-days: 14
-          if-no-files-found: error
+      - name: Runner Network Interface Info
+        run: |
+          echo "=================================================="
+          echo "        NETWORK ADAPTER LINK DETAILS              "
+          echo "=================================================="
+          ip -s link
           
