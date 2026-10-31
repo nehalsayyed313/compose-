@@ -11,7 +11,7 @@ jobs:
       - name: Install Build and Emulation Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             busybox-static \
             cpio \
             qemu-system-x86 \
@@ -32,37 +32,51 @@ jobs:
           mkdir -p "$ROOTFS"/{bin,sbin,usr/bin,usr/sbin,proc,sys,dev,tmp,root,lib,lib64,etc}
           mkdir -p "$OUTPUT"
 
-          # 1. Install Shell and Core Utilities (Static BusyBox)
-          cp /bin/busybox "$ROOTFS/bin/busybox"
+          # 1. Install Static BusyBox Binary
+          BUSYBOX_BIN=$(command -v busybox)
+          cp -a "$BUSYBOX_BIN" "$ROOTFS/bin/busybox"
           chmod 755 "$ROOTFS/bin/busybox"
 
-          for applet in $(busybox --list); do
-            ln -sf /bin/busybox "$ROOTFS/bin/$applet"
+          # 2. Generate Relative Symlinks (explicitly skip 'busybox' to prevent ELOOP circular symlink)
+          cd "$ROOTFS/bin"
+          for applet in $(./busybox --list); do
+            if [ "$applet" != "busybox" ]; then
+              ln -sf busybox "$applet"
+            fi
           done
-          ln -sf /bin/busybox "$ROOTFS/bin/sh"
+          ln -sf busybox sh
+          cd "$WORK_DIR"
 
-          # 2. Acquire Libc and Dynamic Linker
+          # 3. Assert binary and shell integrity
+          test -f "$ROOTFS/bin/busybox" && test ! -L "$ROOTFS/bin/busybox"
+          test -L "$ROOTFS/bin/sh"
+
+          # 4. Copy Libc and Dynamic Linker for runtime compatibility
           mkdir -p "$ROOTFS/lib/x86_64-linux-gnu"
           cp -aL /lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/" 2>/dev/null || cp -aL /usr/lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/"
-          cp -aL /usr/lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/x86_64-linux-gnu/"
+          cp -aL /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/x86_64-linux-gnu/"
           ln -sf /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/libc.so.6"
           ln -sf /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib64/libc.so.6"
 
-          # 3. Create Required Static Device Nodes
+          # 5. Create Static Core Device Nodes
           sudo mknod -m 600 "$ROOTFS/dev/console" c 5 1
           sudo mknod -m 666 "$ROOTFS/dev/null" c 1 3
           sudo mknod -m 666 "$ROOTFS/dev/tty" c 5 0
 
-          # 4. Construct Minimal PID 1 Init System
+          # 6. Construct PID 1 Init System
           cat << 'EOF' > "$ROOTFS/init"
           #!/bin/sh
           mount -t proc proc /proc
           mount -t sysfs sysfs /sys
           mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
 
+          # Direct all I/O to controlling console
+          exec 0</dev/console
+          exec 1>/dev/console
+          exec 2>/dev/console
+
           export PATH=/bin:/sbin:/usr/bin:/usr/sbin
           export HOME=/root
-          clear 2>/dev/null || true
 
           echo "=================================================="
           echo "         MINIMAL x86_64 LINUX DISTRO ONLINE       "
@@ -70,25 +84,24 @@ jobs:
           echo "   Shell:  BusyBox (/bin/sh)                      "
           echo "=================================================="
 
-          # Check for automated CI test flag
           if grep -q "customdistro.autotest" /proc/cmdline; then
               echo "[SELF-TEST] Init script and shell active. Powering off."
               poweroff -f
           fi
 
-          # Interactive terminal session with job control
+          # Interactive session with terminal job control
           setsid cttyhack /bin/sh
           poweroff -f
           EOF
 
-          chmod +x "$ROOTFS/init"
+          chmod 755 "$ROOTFS/init"
 
-          # 5. Pack RootFS into CPIO initramfs
+          # 7. Pack RootFS into CPIO initramfs
           cd "$ROOTFS"
           find . -print0 | cpio --null -ov --format=newc | gzip -9 > "$OUTPUT/initramfs.cpio.gz"
           cd "$WORK_DIR"
 
-          # 6. Extract the Host Kernel using sudo and dereference symlinks (-L)
+          # 8. Extract Kernel
           KERNEL_BIN=$(ls -1 /boot/vmlinuz-* 2>/dev/null | grep -v 'old' | head -n 1)
           if [ -z "$KERNEL_BIN" ]; then
             KERNEL_BIN="/boot/vmlinuz"
@@ -98,7 +111,7 @@ jobs:
           sudo chown -R "$USER:$USER" "$WORK_DIR"
           chmod 644 "$OUTPUT/vmlinuz"
 
-          # 7. Generate Standalone QEMU Runner Script for Local Use
+          # 9. Standalone Local Runner Script
           cat << 'EOF' > "$OUTPUT/run-distro.sh"
           #!/bin/sh
           qemu-system-x86_64 \
@@ -110,35 +123,30 @@ jobs:
           EOF
           chmod +x "$OUTPUT/run-distro.sh"
 
-          echo "Build finished successfully."
+          echo "Build complete."
           ls -lh "$OUTPUT"
 
-      - name: Verify Distro Components
+      - name: Verify Components
         run: |
           OUTPUT="${{ github.workspace }}/distro-build/output"
-
-          echo "=== Kernel binary check ==="
           file "$OUTPUT/vmlinuz"
-
-          echo "=== Initramfs archive check ==="
           file "$OUTPUT/initramfs.cpio.gz"
-          ls -lh "$OUTPUT/initramfs.cpio.gz"
 
       - name: Smoke-Test Distro Boot in QEMU
         run: |
           OUTPUT="${{ github.workspace }}/distro-build/output"
 
-          echo "Booting custom x86_64 distro in headless QEMU..."
+          echo "Booting distro in headless QEMU..."
           timeout 20s qemu-system-x86_64 \
             -m 256M \
             -kernel "$OUTPUT/vmlinuz" \
             -initrd "$OUTPUT/initramfs.cpio.gz" \
-            -append "console=ttyS0 panic=1 customdistro.autotest" \
+            -append "console=ttyS0 panic=1 customdistro.autotest quiet" \
             -nographic \
             -no-reboot | tee boot.log
 
           grep -q "MINIMAL x86_64 LINUX DISTRO ONLINE" boot.log
-          echo "PASS: Distro booted and executed PID 1 cleanly."
+          echo "PASS: Distro booted, /init executed, and self-test verified."
 
       - name: Upload Distro Artifact
         uses: actions/upload-artifact@v4
