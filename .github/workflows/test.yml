@@ -5,7 +5,6 @@ on:
 
 jobs:
   network-benchmark:
-    # You can switch to larger runners (e.g. ubuntu-24.04-arm, or larger paid runners) to compare
     runs-on: ubuntu-24.04
 
     steps:
@@ -16,14 +15,15 @@ jobs:
             curl \
             wget \
             aria2 \
-            python3 \
-            python3-pip
+            tar \
+            ca-certificates
 
-          # Official Ookla Speedtest binary
-          curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
-          sudo apt-get install -y speedtest
+          # 1. Official Ookla Speedtest Standalone Binary (bypasses APT repo)
+          curl -sL https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-x86_64.tgz | \
+            sudo tar -xz -C /usr/local/bin speedtest
+          sudo chmod +x /usr/local/bin/speedtest
 
-          # Fast.com CLI (Go binary)
+          # 2. Fast.com CLI (Go binary)
           wget -q https://github.com/ddo/fast/releases/latest/download/fast_linux_amd64 -O fast
           chmod +x fast
           sudo mv fast /usr/local/bin/
@@ -33,7 +33,6 @@ jobs:
           echo "=================================================="
           echo "         OOKLA SPEEDTEST BENCHMARK                "
           echo "=================================================="
-          # Accept Ookla EULA non-interactively and run verbose benchmark
           speedtest --accept-license --accept-gdpr -f human-readable
 
       - name: Run Fast.com (Netflix CDN) Benchmark
@@ -48,7 +47,6 @@ jobs:
           echo "=================================================="
           echo "   PARALLEL TCP STREAM TEST (16 Connections)      "
           echo "=================================================="
-          # Pulls a 1GB test file directly into /dev/null to measure pure network interface speed
           aria2c \
             -s 16 \
             -x 16 \
