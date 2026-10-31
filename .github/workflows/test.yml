@@ -11,10 +11,11 @@ jobs:
       - name: Install Build and Emulation Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get install -y \
             busybox-static \
             cpio \
             qemu-system-x86 \
+            seabios \
             ipxe-qemu \
             binutils \
             file
@@ -35,17 +36,17 @@ jobs:
           cp /bin/busybox "$ROOTFS/bin/busybox"
           chmod 755 "$ROOTFS/bin/busybox"
 
-          # Symlink standard commands
           for applet in $(busybox --list); do
             ln -sf /bin/busybox "$ROOTFS/bin/$applet"
           done
           ln -sf /bin/busybox "$ROOTFS/bin/sh"
 
           # 2. Acquire Libc and Dynamic Linker
-          # Copy standard x86_64 glibc libraries into the rootfs
-          cp -a /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/"
-          cp -a /lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/"
-          ln -sf /lib/libc.so.6 "$ROOTFS/lib64/libc.so.6"
+          mkdir -p "$ROOTFS/lib/x86_64-linux-gnu"
+          cp -aL /lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/" 2>/dev/null || cp -aL /usr/lib64/ld-linux-x86-64.so.2 "$ROOTFS/lib64/"
+          cp -aL /usr/lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/x86_64-linux-gnu/"
+          ln -sf /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib/libc.so.6"
+          ln -sf /lib/x86_64-linux-gnu/libc.so.6 "$ROOTFS/lib64/libc.so.6"
 
           # 3. Create Required Static Device Nodes
           sudo mknod -m 600 "$ROOTFS/dev/console" c 5 1
@@ -75,7 +76,7 @@ jobs:
               poweroff -f
           fi
 
-          # Hand over terminal control to an interactive shell session
+          # Interactive terminal session with job control
           setsid cttyhack /bin/sh
           poweroff -f
           EOF
@@ -87,15 +88,21 @@ jobs:
           find . -print0 | cpio --null -ov --format=newc | gzip -9 > "$OUTPUT/initramfs.cpio.gz"
           cd "$WORK_DIR"
 
-          # 6. Extract the Host Kernel
-          KERNEL_BIN=$(ls -1 /boot/vmlinuz* | head -n 1)
-          cp "$KERNEL_BIN" "$OUTPUT/vmlinuz"
+          # 6. Extract the Host Kernel using sudo and dereference symlinks (-L)
+          KERNEL_BIN=$(ls -1 /boot/vmlinuz-* 2>/dev/null | grep -v 'old' | head -n 1)
+          if [ -z "$KERNEL_BIN" ]; then
+            KERNEL_BIN="/boot/vmlinuz"
+          fi
+
+          sudo cp -L "$KERNEL_BIN" "$OUTPUT/vmlinuz"
+          sudo chown -R "$USER:$USER" "$WORK_DIR"
           chmod 644 "$OUTPUT/vmlinuz"
 
           # 7. Generate Standalone QEMU Runner Script for Local Use
           cat << 'EOF' > "$OUTPUT/run-distro.sh"
           #!/bin/sh
           qemu-system-x86_64 \
+            -m 256M \
             -kernel vmlinuz \
             -initrd initramfs.cpio.gz \
             -append "console=ttyS0 quiet" \
@@ -130,7 +137,6 @@ jobs:
             -nographic \
             -no-reboot | tee boot.log
 
-          # Verify boot banner was output by PID 1
           grep -q "MINIMAL x86_64 LINUX DISTRO ONLINE" boot.log
           echo "PASS: Distro booted and executed PID 1 cleanly."
 
