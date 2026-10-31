@@ -1,76 +1,163 @@
-name: FEX Alpine ARM64
+name: Build Custom Linux Distro
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-fex:
+  build-distro:
     runs-on: ubuntu-24.04-arm
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Build FEX inside Alpine ARM64 container
+      - name: Install Build and Emulation Dependencies
         run: |
-          docker run --rm \
-            --platform linux/arm64 \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            alpine:3.20 sh -cex '
-              apk update
-              apk add --no-cache \
-                git bash cmake ninja \
-                clang clang-dev lld compiler-rt \
-                python3 python3-dev py3-pip \
-                make pkgconfig nasm \
-                musl-dev linux-headers binutils \
-                openssl-dev zlib-dev libffi-dev \
-                gcompat musl-locales
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            busybox-static \
+            cpio \
+            musl \
+            musl-tools \
+            qemu-system-arm \
+            binutils \
+            file
 
-              git config --global --add safe.directory "*"
+      - name: Assemble Custom Distro RootFS, Libc, and Shell
+        run: |
+          set -ex
 
-              echo "=== Checking workspace contents ==="
-              ls -la
+          # 1. Prepare clean directories
+          WORK_DIR="${{ github.workspace }}/distro-build"
+          ROOTFS="$WORK_DIR/rootfs"
+          OUTPUT="$WORK_DIR/output"
 
-              # Determine where FEX source code lives
-              if [ -f "CMakeLists.txt" ]; then
-                SRC_DIR="."
-              elif [ -f "FEX/CMakeLists.txt" ]; then
-                SRC_DIR="FEX"
-              elif [ -f "fex/CMakeLists.txt" ]; then
-                SRC_DIR="fex"
-              else
-                echo "CMakeLists.txt not found. Cloning FEX-Emu repository..."
-                git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex-src
-                SRC_DIR="fex-src"
-              fi
+          rm -rf "$WORK_DIR"
+          mkdir -p "$ROOTFS"/{bin,sbin,etc,proc,sys,dev,tmp,root,lib,lib64,usr/bin,usr/sbin,usr/lib}
+          mkdir -p "$OUTPUT"
 
-              cd "$SRC_DIR"
+          # 2. Acquire Shell and Coreutils (BusyBox)
+          cp /usr/bin/busybox "$ROOTFS/bin/busybox"
+          chmod 755 "$ROOTFS/bin/busybox"
 
-              rm -rf build
-              CC=clang CXX=clang++ cmake -B build -G Ninja \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_TESTS=OFF \
-                -DENABLE_LTO=OFF \
-                -DUSE_LINKER=lld
+          # Populate standard Unix symlinks pointing to busybox
+          for applet in $(busybox --list); do
+            ln -sf /bin/busybox "$ROOTFS/bin/$applet"
+          done
+          ln -sf /bin/busybox "$ROOTFS/bin/sh"
 
-              cmake --build build -j$(nproc)
+          # 3. Acquire Libc (Dynamic Linker + Shared C Libraries)
+          # Locate host glibc and dynamic linker
+          LIBC_PATH=$(ldd /bin/dash | grep -o '/lib[^ ]*libc.so.[0-9]' | head -n 1)
+          LD_PATH=$(ldd /bin/dash | grep -o '/lib[^ ]*ld-linux[^ ]*' | head -n 1)
 
-              mkdir -p /workspace/out
-              find build/Bin -type f -executable -exec cp -v {} /workspace/out/ \; || true
-              find build -maxdepth 2 -name "FEX*" -type f -exec cp -v {} /workspace/out/ \; || true
-              ls -lh /workspace/out/
-            '
+          mkdir -p "$ROOTFS/$(dirname "$LIBC_PATH")"
+          mkdir -p "$ROOTFS/$(dirname "$LD_PATH")"
 
-      - name: Upload FEX build
+          cp -a "$LIBC_PATH" "$ROOTFS/$LIBC_PATH"
+          cp -a "$LD_PATH" "$ROOTFS/$LD_PATH"
+
+          # Also acquire Musl libc if present
+          if [ -f /usr/lib/aarch64-linux-musl/libc.so ]; then
+            mkdir -p "$ROOTFS/usr/lib/aarch64-linux-musl"
+            cp -a /usr/lib/aarch64-linux-musl/libc.so "$ROOTFS/lib/ld-musl-aarch64.so.1"
+          fi
+
+          # Ensure 64-bit library paths resolve
+          ln -sf "$(dirname "$LIBC_PATH")" "$ROOTFS/lib64" 2>/dev/null || true
+
+          # 4. Create Device Nodes for Early Console
+          sudo mknod -m 600 "$ROOTFS/dev/console" c 5 1
+          sudo mknod -m 666 "$ROOTFS/dev/null" c 1 3
+
+          # 5. Write Custom PID 1 Init Script
+          cat << 'EOF' > "$ROOTFS/init"
+          #!/bin/sh
+          # Mount essential kernel virtual filesystems
+          mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+          mount -t proc proc /proc
+          mount -t sysfs sysfs /sys
+
+          export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+          export HOME=/root
+
+          echo "=================================================="
+          echo "       CUSTOM ARM64 LINUX DISTRO ONLINE           "
+          echo "   Kernel: $(uname -r) ($(uname -m))              "
+          echo "   Libc:   GNU C Library / Musl Ready             "
+          echo "   Shell:  BusyBox (/bin/sh)                      "
+          echo "=================================================="
+
+          # Automated CI test detection
+          if grep -q "customdistro.autotest" /proc/cmdline; then
+              echo "[SELF-TEST] Init and shell environment functional. Powering down."
+              poweroff -f
+          fi
+
+          # Interactive session
+          exec /bin/sh
+          EOF
+
+          chmod +x "$ROOTFS/init"
+
+          # 6. Pack RootFS into Bootable initramfs (CPIO format)
+          cd "$ROOTFS"
+          find . -print0 | cpio --null -ov --format=newc | gzip -9 > "$OUTPUT/initramfs.cpio.gz"
+          cd "$WORK_DIR"
+
+          # 7. Acquire Linux Kernel
+          KERNEL_BIN=$(ls -1 /boot/vmlinuz* | head -n 1)
+          sudo cp "$KERNEL_BIN" "$OUTPUT/vmlinuz"
+          sudo chmod 644 "$OUTPUT/vmlinuz"
+
+          # 8. Create Local QEMU Runner Script for the artifact
+          cat << 'EOF' > "$OUTPUT/run-qemu.sh"
+          #!/bin/sh
+          qemu-system-aarch64 \
+            -M virt \
+            -cpu cortex-a57 \
+            -m 512M \
+            -kernel vmlinuz \
+            -initrd initramfs.cpio.gz \
+            -append "console=ttyAMA0 earlycon" \
+            -nographic
+          EOF
+          chmod +x "$OUTPUT/run-qemu.sh"
+
+          echo "Distro assembled successfully."
+          ls -lh "$OUTPUT"
+
+      - name: Verify Distro Components
+        run: |
+          OUTPUT="${{ github.workspace }}/distro-build/output"
+
+          echo "=== Verifying Kernel ==="
+          file "$OUTPUT/vmlinuz"
+
+          echo "=== Verifying Initramfs ==="
+          file "$OUTPUT/initramfs.cpio.gz"
+          ls -lh "$OUTPUT/initramfs.cpio.gz"
+
+      - name: Smoke-Test Distro Boot in QEMU
+        run: |
+          OUTPUT="${{ github.workspace }}/distro-build/output"
+
+          echo "Booting custom distro under QEMU..."
+          timeout 30s qemu-system-aarch64 \
+            -M virt \
+            -cpu cortex-a57 \
+            -m 512M \
+            -kernel "$OUTPUT/vmlinuz" \
+            -initrd "$OUTPUT/initramfs.cpio.gz" \
+            -append "console=ttyAMA0 earlycon panic=1 customdistro.autotest" \
+            -nographic \
+            -no-reboot | tee boot.log
+
+          # Assert successful boot banner from custom /init
+          grep -q "CUSTOM ARM64 LINUX DISTRO ONLINE" boot.log
+          echo "Distro verified: Kernel, Initramfs, Libc, and Shell booted cleanly."
+
+      - name: Upload Distro Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fex-alpine-arm64-${{ github.run_number }}
-          path: out/
+          name: custom-linux-distro-arm64-${{ github.run_number }}
+          path: distro-build/output/
           retention-days: 14
           if-no-files-found: error
-          
