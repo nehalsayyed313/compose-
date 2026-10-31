@@ -31,24 +31,39 @@ jobs:
                 openssl-dev zlib-dev libffi-dev \
                 gcompat musl-locales
 
-              git config --global --add safe.directory /workspace
+              git config --global --add safe.directory "*"
 
-              clang --version
-              cmake --version
-              python3 --version
+              echo "=== Checking workspace contents ==="
+              ls -la
+
+              # Determine where FEX source code lives
+              if [ -f "CMakeLists.txt" ]; then
+                SRC_DIR="."
+              elif [ -f "FEX/CMakeLists.txt" ]; then
+                SRC_DIR="FEX"
+              elif [ -f "fex/CMakeLists.txt" ]; then
+                SRC_DIR="fex"
+              else
+                echo "CMakeLists.txt not found. Cloning FEX-Emu repository..."
+                git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex-src
+                SRC_DIR="fex-src"
+              fi
+
+              cd "$SRC_DIR"
 
               rm -rf build
               CC=clang CXX=clang++ cmake -B build -G Ninja \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_TESTS=OFF \
-                -DENABLE_LTO=OFF
+                -DENABLE_LTO=OFF \
+                -DUSE_LINKER=lld
 
               cmake --build build -j$(nproc)
 
-              mkdir -p out
-              find build/Bin -type f -executable -exec cp -v {} out/ \; || true
-              find build -maxdepth 2 -name "FEX*" -type f -exec cp -v {} out/ \; || true
-              ls -lh out/
+              mkdir -p /workspace/out
+              find build/Bin -type f -executable -exec cp -v {} /workspace/out/ \; || true
+              find build -maxdepth 2 -name "FEX*" -type f -exec cp -v {} /workspace/out/ \; || true
+              ls -lh /workspace/out/
             '
 
       - name: Upload FEX build
