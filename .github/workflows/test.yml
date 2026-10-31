@@ -6,50 +6,49 @@ on:
 jobs:
   build-fex:
     runs-on: ubuntu-24.04-arm
-    container:
-      image: alpine:3.20
-      options: --platform linux/arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install FEX deps on Alpine
+      - name: Build FEX inside Alpine ARM64 container
         run: |
-          apk update
-          apk add --no-cache \
-            git bash cmake samurai ninja \
-            clang21 clang21-dev lld compiler-rt \
-            python3 python3-dev py3-pip \
-            make pkgconfig nasm \
-            musl-dev linux-headers binutils \
-            openssl-dev zlib-dev libffi-dev \
-            gcompat glibc-locale-posix
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            alpine:3.20 sh -c "
+              set -ex
+              apk update
+              apk add --no-cache \
+                git bash cmake samurai ninja \
+                clang clang-dev lld compiler-rt \
+                python3 python3-dev py3-pip \
+                make pkgconfig nasm \
+                musl-dev linux-headers binutils \
+                openssl-dev zlib-dev libffi-dev \
+                gcompat glibc-locale-posix
 
-          clang --version
-          cmake --version
-          python3 --version
+              clang --version
+              cmake --version
+              python3 --version
 
-      - name: Configure FEX
-        run: |
-          rm -rf build
-          CC=clang CXX=clang++ cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTS=OFF \
-            -DENABLE_LTO=OFF
+              rm -rf build
+              CC=clang CXX=clang++ cmake -B build -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_TESTS=OFF \
+                -DENABLE_LTO=OFF
 
-      - name: Build FEX
-        run: |
-          cmake --build build -j$(nproc)
+              cmake --build build -j\$(nproc)
 
-      - name: Package binaries
-        run: |
-          mkdir -p out
-          find build/Bin -type f -executable -exec cp -v {} out/ \; || true
-          find build -maxdepth 2 -name "FEX*" -type f -exec cp -v {} out/ \; || true
-          ls -lh out/
+              mkdir -p out
+              find build/Bin -type f -executable -exec cp -v {} out/ \; || true
+              find build -maxdepth 2 -name 'FEX*' -type f -exec cp -v {} out/ \; || true
+              ls -lh out/
+            "
 
       - name: Upload FEX build
         uses: actions/upload-artifact@v4
@@ -58,3 +57,4 @@ jobs:
           path: out/
           retention-days: 14
           if-no-files-found: error
+          
