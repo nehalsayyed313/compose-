@@ -5,10 +5,14 @@ on:
 
 jobs:
   network-benchmark:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
 
     steps:
       - name: running 
         run: |
-             curl --silent https://raw.githubusercontent.com/FEX-Emu/FEX/main/Scripts/InstallFEX.py | python3
-                    
+             git clone --depth 1 --recursive https://github.com/ggml-org/llama.cpp.git
+             cd llama.cpp
+             mkdir build
+             cd build
+             cmake .. -G Ninja
+             ninja
