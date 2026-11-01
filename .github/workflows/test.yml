@@ -1,69 +1,14 @@
-name: Benchmark Runner Network Speed
+name: Build
 
 on:
   workflow_dispatch:
 
 jobs:
   network-benchmark:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
 
     steps:
-      - name: Install Benchmark Tooling
+      - name: running 
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            curl \
-            wget \
-            aria2 \
-            tar \
-            ca-certificates
-
-          # 1. Official Ookla Speedtest Standalone Binary
-          curl -sL https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-x86_64.tgz | \
-            sudo tar -xz -C /usr/local/bin speedtest
-          sudo chmod +x /usr/local/bin/speedtest
-
-          # 2. Fast.com CLI (Go binary)
-          wget -q https://github.com/ddo/fast/releases/latest/download/fast_linux_amd64 -O fast
-          chmod +x fast
-          sudo mv fast /usr/local/bin/
-
-      - name: Run Ookla Multi-Stream Benchmark
-        run: |
-          echo "=================================================="
-          echo "         OOKLA SPEEDTEST BENCHMARK                "
-          echo "=================================================="
-          speedtest --accept-license --accept-gdpr -f human-readable
-
-      - name: Run Fast.com (Netflix CDN) Benchmark
-        run: |
-          echo "=================================================="
-          echo "         FAST.COM CDN THROUGHPUT                  "
-          echo "=================================================="
-          fast
-
-      - name: Maximize Parallel Downlink (aria2c - 16 Connections)
-        run: |
-          echo "=================================================="
-          echo "   PARALLEL TCP STREAM TEST (16 Connections)      "
-          echo "=================================================="
-          aria2c \
-            -s 16 \
-            -x 16 \
-            -k 2M \
-            --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-            --dir=/dev/shm \
-            --out=speedtest_dump.bin \
-            --allow-overwrite=true \
-            --summary-interval=1 \
-            https://ash-speed.hetzner.com/10GB.bin
-
-          rm -f /dev/shm/speedtest_dump.bin
-
-      - name: Runner Network Interface Info
-        run: |
-          echo "=================================================="
-          echo "        NETWORK ADAPTER LINK DETAILS              "
-          echo "=================================================="
-          ip -s link
-          
+             curl --silent https://raw.githubusercontent.com/FEX-Emu/FEX/main/Scripts/InstallFEX.py | python3
+                    
