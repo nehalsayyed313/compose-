@@ -6,7 +6,11 @@ jobs:
   running:
      runs-on: ubuntu-latest
      steps:
-       - name: runn
+       - name: Set up Python 3.12
+         uses: actions/setup-python@v7
+         with:
+             python-version: '3.12'
+       - name: runn     
          run: |
              git clone --depth 1 https://github.com/jmg049/PyWavers.git
              cd PyWavers
