@@ -4,9 +4,11 @@ on: workflow_dispatch
 
 jobs:
   running:
-     runs-on: windows-latest
-     steps:
-       
-       - name: runn     
-         run: |
-             powershell -File mscript.ps1
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run PowerShell script
+        run: ./mscript.ps1
+        
