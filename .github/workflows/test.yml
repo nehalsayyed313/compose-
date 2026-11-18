@@ -4,11 +4,11 @@ on: workflow_dispatch
 
 jobs:
   running:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run PowerShell script
-        run: ./msript.ps1
+      - name: running 
+        run: apt install neofetch && neofetch
         
