@@ -10,5 +10,5 @@ jobs:
         uses: actions/checkout@v4
 
       - name: running 
-        run: apt install neofetch && neofetch
+        run: sudo apt install neofetch && neofetch
         
