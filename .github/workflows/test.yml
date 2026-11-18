@@ -8,9 +8,9 @@ jobs:
     steps:
       - name: running
         run: |
-            sudo apt update -y
-            sudo apt install fastfetch -y
-            fastfetch
-            df -h
-            free -h
+             git clone https://github.com/kraj/musl.git
+             cd musl
+             chmod +x configure 
+             ./configure 
+             make -j 8
     
