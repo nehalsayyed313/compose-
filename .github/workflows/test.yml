@@ -11,4 +11,6 @@ jobs:
             sudo apt update -y
             sudo apt install fastfetch -y
             fastfetch
+            df -h
+            free -h
     
