@@ -1,52 +1,14 @@
-name: Build JAX & jaxlib ARM64 Wheels
+name: learn
 
-on:
-  workflow_dispatch:
-    inputs:
-      jax_ref:
-        description: 'JAX branch, tag, or commit SHA to build'
-        required: true
-        default: 'main'
-      wheels:
-        description: 'Comma-separated wheels to build (e.g. jaxlib or jax,jaxlib)'
-        required: true
-        default: 'jaxlib'
+on: workflow_dispatch
 
 jobs:
-  build-arm64-wheel:
-    # Free ARM64 hosted runner (4 vCPU, 16 GB RAM) for public repositories
-    runs-on: ubuntu-24.04-arm
-
+  build:
+    runs-on: ubuntu-latest
     steps:
-      - name: Check out JAX repository
-        uses: actions/checkout@v4
-        with:
-          repository: jax-ml/jax
-          ref: ${{ github.event.inputs.jax_ref || 'main' }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install system build dependencies
+      - name: running
         run: |
-          sudo apt-get update
-          sudo apt-get install -y g++ clang python3-dev patchelf
-
-      - name: Install Python build dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install numpy wheel build setuptools
-
-      - name: Build JAX / jaxlib wheels
-        run: |
-          python build/build.py build --wheels=${{ github.event.inputs.wheels || 'jaxlib' }}
-
-      - name: Upload built wheels as workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: jax-linux-aarch64-wheels
-          path: dist/*.whl
-          if-no-files-found: error
-          
+            sudo apt update 
+            sudo apt install neofetch
+            neofetch
+    
