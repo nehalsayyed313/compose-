@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: running
         run: |
-             git clone https://github.com/kraj/musl.git
+             git clone https://github.com/bminor/glibc.git
              cd musl
              chmod +x configure 
              ./configure 
