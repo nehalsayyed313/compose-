@@ -9,7 +9,7 @@ jobs:
       - name: running
         run: |
              git clone https://github.com/bminor/glibc.git
-             cd musl
+             cd glibc
              chmod +x configure 
              ./configure 
              make -j 8
