@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: running
         run: |
-            sudo apt update 
-            sudo apt install neofetch
-            neofetch
+            sudo apt update -y
+            sudo apt install fastfetch -y
+            fastfetch
     
