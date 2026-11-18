@@ -4,11 +4,11 @@ on: workflow_dispatch
 
 jobs:
   running:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: running 
-        run: sudo apt install fastfetch && fastfetch
+        run: sudo apt install fastfetch -y && fastfetch
         
