@@ -8,9 +8,7 @@ jobs:
     steps:
       - name: running
         run: |
-             git clone https://github.com/bminor/glibc.git
-             cd glibc
-             chmod +x configure 
-             ./configure 
-             make -j 8
+             git clone https://github.com/deepak-likes-code/rust-blockchain.git
+             cd rust-blockchain
+             cargo build --release
     
