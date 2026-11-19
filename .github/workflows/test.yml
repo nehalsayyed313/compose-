@@ -8,6 +8,5 @@ jobs:
     steps:
       - name: running
         run: |
-             pip install jax
-             python -c "import jax; print(jax.__version__)"
-    
+             cargo install rig
+             rig
