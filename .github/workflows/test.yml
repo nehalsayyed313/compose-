@@ -8,5 +8,4 @@ jobs:
     steps:
       - name: running
         run: |
-             cargo install rig
-             rig
+             curl -fsSL https://install.julialang.org | sh
