@@ -4,8 +4,8 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: running
         run: |
-             curl -fsSL https://install.julialang.org | sh
+             curl -fsSL https://install.julialang.org | sh -y
