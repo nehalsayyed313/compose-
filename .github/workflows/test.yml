@@ -8,4 +8,12 @@ jobs:
     steps:
       - name: running
         run: |
-             curl -fsSL https://install.julialang.org | sh -y
+             git clone https://github.com/merttozer/blockchain-P2P.git
+             cd blockchain-P2P
+             sudo apt update -y 
+             sudo apt install libboost-dev libssl-dev -y
+             cmake -B build
+             cd build
+             make -j 8
+
+
