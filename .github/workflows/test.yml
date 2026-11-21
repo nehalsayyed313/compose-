@@ -8,9 +8,9 @@ jobs:
     steps:
       - name: running
         run: |
-             git clone --depth 1 https://github.com/nim-lang/Nim.git
-             cd Nim
-             chmod +x build_all.sh
-             ./build_all.sh
+             git clone --depth 1 https://codeberg.org/ziglang/zig.git
+             cd zig
+             cc -o bootstrap bootstrap.c
+             ./bootstrap
 
 
