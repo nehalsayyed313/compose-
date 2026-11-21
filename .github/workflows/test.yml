@@ -4,16 +4,13 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     steps:
       - name: running
         run: |
-             git clone https://github.com/merttozer/blockchain-P2P.git
-             cd blockchain-P2P
-             sudo apt update -y 
-             sudo apt install libboost-dev libssl-dev libboost-all-dev -y
-             cmake -B build
-             cd build
-             make -j 8
+             git clone --depth 1 https://github.com/nim-lang/Nim.git
+             cd Nim
+             chmod +x build_all.sh
+             ./build_all.sh
 
 
