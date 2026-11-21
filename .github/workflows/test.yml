@@ -11,7 +11,7 @@ jobs:
              git clone https://github.com/merttozer/blockchain-P2P.git
              cd blockchain-P2P
              sudo apt update -y 
-             sudo apt install libboost-dev libssl-dev -y
+             sudo apt install libboost-dev libssl-dev libboost-all-dev -y
              cmake -B build
              cd build
              make -j 8
