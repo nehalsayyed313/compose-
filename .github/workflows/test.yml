@@ -4,13 +4,12 @@ on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: running
         run: |
-             git clone --depth 1 https://codeberg.org/ziglang/zig.git
-             cd zig
-             cc -o bootstrap bootstrap.c
-             ./bootstrap
+             git clone --depth 1 https://github.com/ruffle-rs/ruffle.git
+             cd ruffle 
+             cargo build --release
 
 
