@@ -1,4 +1,4 @@
-name: Ollama Qwen 7B Smoke Test
+name: Ollama Qwen 7B Test
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
       prompt:
         description: "Test prompt"
         required: false
-        default: "Reply with only the word: OK"
+        default: "Explain how DNS resolution works in 3 short sentences."
         type: string
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
       - name: Pull Qwen 7B model
         run: ollama pull "${{ inputs.model }}"
 
-      - name: Run inference smoke test
+      - name: Run inference test
         run: |
           RESPONSE=$(curl -sf http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
@@ -50,13 +50,31 @@ jobs:
               '{model: $model, prompt: $prompt, stream: false}')")
 
           OUTPUT=$(echo "$RESPONSE" | jq -r '.response')
-          echo "Model response: $OUTPUT"
 
           if [ -z "$OUTPUT" ] || [ "$OUTPUT" = "null" ]; then
             echo "Error: Empty response from model."
             exit 1
           fi
 
+          METRICS=$(echo "$RESPONSE" | jq -r '
+            "- **Prompt tokens:** \(.prompt_eval_count) (\((.prompt_eval_count / (.prompt_eval_duration / 1e9)) | round) tok/s)\n" +
+            "- **Generated tokens:** \(.eval_count) (\((.eval_count / (.eval_duration / 1e9)) | round) tok/s)\n" +
+            "- **Total time:** \((.total_duration / 1e9 * 100 | round) / 100)s"
+          ')
+
+          printf "=== Model Response ===\n%s\n\n=== Metrics ===\n%s\n" "$OUTPUT" "$METRICS"
+
+          {
+            echo "### Ollama Inference Result (\`${{ inputs.model }}\`)"
+            echo "**Prompt:** ${{ inputs.prompt }}"
+            echo ""
+            echo "$OUTPUT"
+            echo ""
+            echo "#### Performance"
+            echo "$METRICS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Dump server logs on failure
         if: failure()
         run: cat /tmp/ollama.log
+        
