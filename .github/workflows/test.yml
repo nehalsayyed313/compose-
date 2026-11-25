@@ -1,15 +1,62 @@
-name: learn
+name: Ollama Qwen 7B Smoke Test
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Ollama model tag to pull and test"
+        required: false
+        default: "qwen2.5:7b"
+        type: string
+      prompt:
+        description: "Test prompt"
+        required: false
+        default: "Reply with only the word: OK"
+        type: string
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04-arm
+  test-ollama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - name: running
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama server
         run: |
-             git clone --depth 1 https://github.com/huggingface/transformers.git
-             cd transformers
-             pip install .
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434/api/tags > /dev/null; then
+              echo "Ollama server is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Ollama server failed to start."
+          cat /tmp/ollama.log
+          exit 1
 
+      - name: Pull Qwen 7B model
+        run: ollama pull "${{ inputs.model }}"
 
+      - name: Run inference smoke test
+        run: |
+          RESPONSE=$(curl -sf http://localhost:11434/api/generate \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg model "${{ inputs.model }}" \
+              --arg prompt "${{ inputs.prompt }}" \
+              '{model: $model, prompt: $prompt, stream: false}')")
+
+          OUTPUT=$(echo "$RESPONSE" | jq -r '.response')
+          echo "Model response: $OUTPUT"
+
+          if [ -z "$OUTPUT" ] || [ "$OUTPUT" = "null" ]; then
+            echo "Error: Empty response from model."
+            exit 1
+          fi
+
+      - name: Dump server logs on failure
+        if: failure()
+        run: cat /tmp/ollama.log
