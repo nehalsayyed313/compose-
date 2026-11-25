@@ -1,13 +1,17 @@
-name: Ollama Qwen 7B Test
+name: Ollama MoE Model Test
 
 on:
   workflow_dispatch:
     inputs:
       model:
-        description: "Ollama model tag to pull and test"
+        description: "16GB-safe MoE model tag to pull and test"
         required: false
-        default: "qwen2.5:7b"
-        type: string
+        default: "deepseek-coder-v2:16b"
+        type: choice
+        options:
+          - deepseek-coder-v2:16b
+          - granite3-moe:3b
+          - granite3-moe:1b
       prompt:
         description: "Test prompt"
         required: false
@@ -15,7 +19,7 @@ on:
         type: string
 
 jobs:
-  test-ollama:
+  test-ollama-moe:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -37,10 +41,14 @@ jobs:
           cat /tmp/ollama.log
           exit 1
 
-      - name: Pull Qwen 7B model
-        run: ollama pull "${{ inputs.model }}"
+      - name: Pull MoE model
+        run: |
+          START=$(date +%s)
+          ollama pull "${{ inputs.model }}"
+          END=$(date +%s)
+          echo "Download time: $((END - START))s"
 
-      - name: Run inference test
+      - name: Run MoE inference test
         run: |
           RESPONSE=$(curl -sf http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
@@ -57,6 +65,7 @@ jobs:
           fi
 
           METRICS=$(echo "$RESPONSE" | jq -r '
+            "- **Model load:** \((.load_duration / 1e9 * 100 | round) / 100)s\n" +
             "- **Prompt tokens:** \(.prompt_eval_count) (\((.prompt_eval_count / (.prompt_eval_duration / 1e9)) | round) tok/s)\n" +
             "- **Generated tokens:** \(.eval_count) (\((.eval_count / (.eval_duration / 1e9)) | round) tok/s)\n" +
             "- **Total time:** \((.total_duration / 1e9 * 100 | round) / 100)s"
@@ -65,7 +74,7 @@ jobs:
           printf "=== Model Response ===\n%s\n\n=== Metrics ===\n%s\n" "$OUTPUT" "$METRICS"
 
           {
-            echo "### Ollama Inference Result (\`${{ inputs.model }}\`)"
+            echo "### Ollama MoE Inference Result (\`${{ inputs.model }}\`)"
             echo "**Prompt:** ${{ inputs.prompt }}"
             echo ""
             echo "$OUTPUT"
