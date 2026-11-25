@@ -1,89 +1,93 @@
-name: Ollama MoE Model Test
+name: Fast CPU Diffusion Test
 
 on:
   workflow_dispatch:
     inputs:
-      model:
-        description: "16GB-safe MoE model tag to pull and test"
-        required: false
-        default: "deepseek-coder-v2:16b"
-        type: choice
-        options:
-          - deepseek-coder-v2:16b
-          - granite3-moe:3b
-          - granite3-moe:1b
       prompt:
-        description: "Test prompt"
+        description: "Image generation prompt"
         required: false
-        default: "Explain how DNS resolution works in 3 short sentences."
+        default: "A futuristic cyberpunk street at night, neon reflections on wet asphalt, cinematic lighting"
+        type: string
+      steps:
+        description: "Sampling steps (1 to 4 recommended for SD-Turbo)"
+        required: false
+        default: "4"
+        type: string
+      seed:
+        description: "Random seed"
+        required: false
+        default: "42"
         type: string
 
 jobs:
-  test-ollama-moe:
+  test-cpu-diffusion:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      - name: Install Ollama
-        run: curl -fsSL https://ollama.com/install.sh | sh
-
-      - name: Start Ollama server
+      - name: Install stable-diffusion.cpp (CPU)
         run: |
-          nohup ollama serve > /tmp/ollama.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:11434/api/tags > /dev/null; then
-              echo "Ollama server is ready."
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Ollama server failed to start."
-          cat /tmp/ollama.log
-          exit 1
+          ASSET_URL=$(curl -sf https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest \
+            | jq -r '.assets[] | select(.name | test("bin-Linux-Ubuntu-24\\.04-x86_64\\.zip$")) | .browser_download_url' \
+            | head -n 1)
 
-      - name: Pull MoE model
-        run: |
-          START=$(date +%s)
-          ollama pull "${{ inputs.model }}"
-          END=$(date +%s)
-          echo "Download time: $((END - START))s"
-
-      - name: Run MoE inference test
-        run: |
-          RESPONSE=$(curl -sf http://localhost:11434/api/generate \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --arg model "${{ inputs.model }}" \
-              --arg prompt "${{ inputs.prompt }}" \
-              '{model: $model, prompt: $prompt, stream: false}')")
-
-          OUTPUT=$(echo "$RESPONSE" | jq -r '.response')
-
-          if [ -z "$OUTPUT" ] || [ "$OUTPUT" = "null" ]; then
-            echo "Error: Empty response from model."
+          if [ -z "$ASSET_URL" ]; then
+            echo "Error: Could not find Linux x86_64 release asset."
             exit 1
           fi
 
-          METRICS=$(echo "$RESPONSE" | jq -r '
-            "- **Model load:** \((.load_duration / 1e9 * 100 | round) / 100)s\n" +
-            "- **Prompt tokens:** \(.prompt_eval_count) (\((.prompt_eval_count / (.prompt_eval_duration / 1e9)) | round) tok/s)\n" +
-            "- **Generated tokens:** \(.eval_count) (\((.eval_count / (.eval_duration / 1e9)) | round) tok/s)\n" +
-            "- **Total time:** \((.total_duration / 1e9 * 100 | round) / 100)s"
-          ')
+          curl -fL "$ASSET_URL" -o sd.zip
+          unzip -q sd.zip -d sd-bin
+          SD_CLI=$(find sd-bin -type f -name "sd-cli" | head -n 1)
+          chmod +x "$SD_CLI"
+          echo "SD_CLI=$SD_CLI" >> "$GITHUB_ENV"
 
-          printf "=== Model Response ===\n%s\n\n=== Metrics ===\n%s\n" "$OUTPUT" "$METRICS"
+      - name: Download SD-Turbo checkpoint
+        run: |
+          START=$(date +%s)
+          curl -fL "https://huggingface.co/stabilityai/sd-turbo/resolve/main/sd_turbo.safetensors" \
+            -o sd_turbo.safetensors
+          END=$(date +%s)
+          echo "DOWNLOAD_SEC=$((END - START))" >> "$GITHUB_ENV"
+          echo "Model download time: $((END - START))s"
+
+      - name: Generate image on CPU
+        run: |
+          START=$(date +%s.%N)
+          "$SD_CLI" \
+            -m sd_turbo.safetensors \
+            -p "${{ inputs.prompt }}" \
+            --cfg-scale 1.0 \
+            --steps "${{ inputs.steps }}" \
+            --sampling-method euler_a \
+            -W 512 \
+            -H 512 \
+            -t "$(nproc)" \
+            --seed "${{ inputs.seed }}" \
+            -o output.png
+          END=$(date +%s.%N)
+
+          GEN_TIME=$(awk "BEGIN {printf \"%.2f\", $END - $START}")
+          echo "Generation time (load + ${{ inputs.steps }} steps): ${GEN_TIME}s"
+
+          if [ ! -f output.png ]; then
+            echo "Error: output.png was not created."
+            exit 1
+          fi
 
           {
-            echo "### Ollama MoE Inference Result (\`${{ inputs.model }}\`)"
-            echo "**Prompt:** ${{ inputs.prompt }}"
+            echo "### Fast CPU Diffusion Result (\`sd-turbo\`)"
+            echo "- **Prompt:** ${{ inputs.prompt }}"
+            echo "- **Resolution / Steps:** 512x512 @ ${{ inputs.steps }} steps (CFG 1.0)"
+            echo "- **Download time:** ${DOWNLOAD_SEC}s"
+            echo "- **Total generation time:** ${GEN_TIME}s"
             echo ""
-            echo "$OUTPUT"
-            echo ""
-            echo "#### Performance"
-            echo "$METRICS"
+            echo "Download \`generated-image\` from the **Artifacts** section at the bottom of this run page to inspect \`output.png\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Dump server logs on failure
-        if: failure()
-        run: cat /tmp/ollama.log
-        
+      - name: Upload generated image
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-image
+          path: output.png
+          
