@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       device:
-        description: 'iOS Simulator Device Name'
-        required: true
-        default: 'iPhone 16 Pro'
+        description: 'Preferred iOS Simulator (optional - auto-detects if not found)'
+        required: false
+        default: 'iPhone'
         type: string
 
 jobs:
@@ -15,24 +15,35 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Boot iOS Simulator
+      - name: Find & Boot Available iOS Simulator
         run: |
-          DEVICE_NAME="${{ inputs.device }}"
-          echo "Booting $DEVICE_NAME..."
+          PREFERRED="${{ inputs.device }}"
           
-          # Boot the simulator
-          xcrun simctl boot "$DEVICE_NAME"
+          # Find the UDID of an available iPhone matching the input, or grab the first available iPhone
+          UDID=$(xcrun simctl list devices available | grep -i "$PREFERRED" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
           
-          # Wait until the simulator has completely booted
-          xcrun simctl bootstatus "$DEVICE_NAME" -b
+          if [ -z "$UDID" ]; then
+            echo "Preferred device '$PREFERRED' not found. Selecting first available iPhone..."
+            UDID=$(xcrun simctl list devices available | grep "iPhone" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          fi
 
-      - name: Navigate to Home Screen & Capture Screenshot
+          if [ -z "$UDID" ]; then
+            echo "Error: No available iOS simulators found on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          echo "Booting simulator UDID: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Capture Home Screen Screenshot
         run: |
-          # Ensure the simulator is on the SpringBoard (Home Screen)
+          # Ensure SpringBoard UI is settled
           xcrun simctl ui booted appearance light
           sleep 3
           
-          # Capture the screenshot of the booted simulator
+          # Capture the screenshot
           xcrun simctl io booted screenshot ios-homescreen.png
 
       - name: Upload Home Screen Screenshot
