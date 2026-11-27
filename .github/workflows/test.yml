@@ -9,4 +9,4 @@ jobs:
 
     steps:
       - run: |
-           pip install huggingface_hub transformers 
+           wget https://huggingface.co/unsloth/Inkling-2-Mini-GGUF/resolve/main/Inkling-2-Mini-UD-IQ1_S.gguf 
