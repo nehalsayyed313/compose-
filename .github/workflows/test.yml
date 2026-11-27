@@ -9,4 +9,4 @@ jobs:
 
     steps:
       - run: |
-           pip install huggingface_hub transformer 
+           pip install huggingface_hub transformers 
