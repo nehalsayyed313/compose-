@@ -1,12 +1,44 @@
-name: Test
+name: iOS Simulator Home Screen Screenshot
 
-on: workflow_dispatch
-
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'iOS Simulator Device Name'
+        required: true
+        default: 'iPhone 16 Pro'
+        type: string
 
 jobs:
-  runtest:
-    runs-on: ubuntu-latest
+  capture-homescreen:
+    name: Capture iOS Home Screen
+    runs-on: macos-latest
 
     steps:
-      - run: |
-           wget https://huggingface.co/unsloth/Inkling-2-Mini-GGUF/resolve/main/Inkling-2-Mini-UD-IQ1_S.gguf 
+      - name: Boot iOS Simulator
+        run: |
+          DEVICE_NAME="${{ inputs.device }}"
+          echo "Booting $DEVICE_NAME..."
+          
+          # Boot the simulator
+          xcrun simctl boot "$DEVICE_NAME"
+          
+          # Wait until the simulator has completely booted
+          xcrun simctl bootstatus "$DEVICE_NAME" -b
+
+      - name: Navigate to Home Screen & Capture Screenshot
+        run: |
+          # Ensure the simulator is on the SpringBoard (Home Screen)
+          xcrun simctl ui booted appearance light
+          sleep 3
+          
+          # Capture the screenshot of the booted simulator
+          xcrun simctl io booted screenshot ios-homescreen.png
+
+      - name: Upload Home Screen Screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-homescreen-screenshot
+          path: ios-homescreen.png
+          retention-days: 7
+          
