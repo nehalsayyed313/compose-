@@ -11,6 +11,13 @@ jobs:
     steps:
       - name: Download System Image & Boot Android Emulator
         run: |
+          # Expose adb and unify the AVD directory across all steps
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$ANDROID_AVD_HOME"
+
           # Enable KVM hardware acceleration if exposed by the runner
           if [ -e /dev/kvm ]; then
             sudo chmod 666 /dev/kvm || true
