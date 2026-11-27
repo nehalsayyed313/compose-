@@ -9,23 +9,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Create & Boot Pre-Installed Android Emulator
+      - name: Download System Image & Boot Android Emulator
         run: |
           # Enable KVM hardware acceleration if exposed by the runner
           if [ -e /dev/kvm ]; then
             sudo chmod 666 /dev/kvm || true
           fi
 
-          # Auto-detect the pre-installed system image on the runner
-          SYS_IMG_DIR=$(find "$ANDROID_HOME/system-images" -mindepth 3 -maxdepth 3 -type d | head -n 1)
-          PKG_PATH=$(echo "$SYS_IMG_DIR" | sed "s|$ANDROID_HOME/||; s|/|;|g")
-          echo "Using pre-installed image: $PKG_PATH"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          AVDMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+          PKG_PATH="system-images;android-34;default;x86_64"
 
-          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+          # Accept SDK licenses and fetch the lightweight AOSP x86_64 system image
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" "$PKG_PATH"
+
+          # Create the AVD
+          echo "no" | "$AVDMANAGER" create avd \
             --force \
             --name test_avd \
             --package "$PKG_PATH"
 
+          # Boot the emulator headless using pre-installed libs
+          export LD_LIBRARY_PATH="$ANDROID_HOME/emulator/lib64:$ANDROID_HOME/emulator/lib64/qt/lib:$LD_LIBRARY_PATH"
           "$ANDROID_HOME/emulator/emulator" -avd test_avd \
             -no-window \
             -no-audio \
@@ -33,11 +39,9 @@ jobs:
             -gpu swiftshader_indirect &
 
           adb wait-for-device
-          # Wait until Android framework finishes booting
           until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
             sleep 2
           done
-          # Dismiss lockscreen if present
           adb shell input keyevent 82 || true
 
       - name: Write Android Canvas Drawing App
