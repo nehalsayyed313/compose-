@@ -1,168 +1,209 @@
-name: iOS Simulator Swift Drawing
+name: Android Emulator Canvas Drawing
 
 on:
   workflow_dispatch:
-    inputs:
-      device:
-        description: 'Preferred iOS Simulator'
-        required: false
-        default: 'iPhone'
-        type: string
 
 jobs:
-  draw-on-ios:
-    name: Build, Record & Capture Swift Drawing
-    runs-on: macos-latest
+  draw-on-android:
+    name: Build, Record & Capture Android Drawing
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Find & Boot Available iOS Simulator
+      - name: Create & Boot Pre-Installed Android Emulator
         run: |
-          PREFERRED="${{ inputs.device }}"
-          UDID=$(xcrun simctl list devices available | grep -i "$PREFERRED" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
-          
-          if [ -z "$UDID" ]; then
-            UDID=$(xcrun simctl list devices available | grep "iPhone" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          # Enable KVM hardware acceleration if exposed by the runner
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm || true
           fi
 
-          echo "Booting simulator UDID: $UDID"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
+          # Auto-detect the pre-installed system image on the runner
+          SYS_IMG_DIR=$(find "$ANDROID_HOME/system-images" -mindepth 3 -maxdepth 3 -type d | head -n 1)
+          PKG_PATH=$(echo "$SYS_IMG_DIR" | sed "s|$ANDROID_HOME/||; s|/|;|g")
+          echo "Using pre-installed image: $PKG_PATH"
 
-      - name: Write SwiftUI Drawing App
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force \
+            --name test_avd \
+            --package "$PKG_PATH"
+
+          "$ANDROID_HOME/emulator/emulator" -avd test_avd \
+            -no-window \
+            -no-audio \
+            -no-boot-anim \
+            -gpu swiftshader_indirect &
+
+          adb wait-for-device
+          # Wait until Android framework finishes booting
+          until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
+            sleep 2
+          done
+          # Dismiss lockscreen if present
+          adb shell input keyevent 82 || true
+
+      - name: Write Android Canvas Drawing App
         run: |
-          mkdir -p DrawingApp.app
+          mkdir -p src/com/example/drawingapp
 
-          cat << 'EOF' > main.swift
-          import SwiftUI
-
-          @main
-          struct DrawingApp: App {
-              var body: some Scene {
-                  WindowGroup {
-                      CanvasView()
-                  }
-              }
-          }
-
-          struct CanvasView: View {
-              var body: some View {
-                  ZStack {
-                      Color.black.ignoresSafeArea()
-                      
-                      Canvas { context, size in
-                          let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                          
-                          // 1. Draw glowing concentric rings
-                          for i in 1...6 {
-                              let radius = CGFloat(i) * 28
-                              let rect = CGRect(
-                                  x: center.x - radius,
-                                  y: center.y - radius,
-                                  width: radius * 2,
-                                  height: radius * 2
-                              )
-                              let hue = Double(i) / 6.0
-                              context.stroke(
-                                  Path(ellipseIn: rect),
-                                  with: .color(Color(hue: hue, saturation: 0.85, brightness: 1.0)),
-                                  lineWidth: 5
-                              )
-                          }
-                          
-                          // 2. Draw a 5-point star in the center
-                          var star = Path()
-                          let points = 5
-                          let outerRadius: CGFloat = 65
-                          let innerRadius: CGFloat = 28
-                          
-                          for i in 0..<(points * 2) {
-                              let angle = (CGFloat(i) * .pi / CGFloat(points)) - (.pi / 2)
-                              let r = i % 2 == 0 ? outerRadius : innerRadius
-                              let pt = CGPoint(
-                                  x: center.x + cos(angle) * r,
-                                  y: center.y + sin(angle) * r
-                              )
-                              if i == 0 { star.move(to: pt) } else { star.addLine(to: pt) }
-                          }
-                          star.closeSubpath()
-                          context.fill(star, with: .color(.yellow))
-                      }
-                      
-                      VStack {
-                          Spacer()
-                          Text("Drawn with SwiftUI Canvas")
-                              .font(.headline)
-                              .foregroundColor(.white)
-                              .padding(.bottom, 50)
-                      }
-                  }
-              }
-          }
+          cat << 'EOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.example.drawingapp"
+              android:versionCode="1"
+              android:versionName="1.0">
+              <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+              <application
+                  android:label="DrawingApp"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
           EOF
 
-          cat << 'EOF' > DrawingApp.app/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleExecutable</key>
-              <string>DrawingApp</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.example.DrawingApp</string>
-              <key>CFBundleName</key>
-              <string>DrawingApp</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>UILaunchScreen</key>
-              <dict/>
-          </dict>
-          </plist>
+          cat << 'EOF' > src/com/example/drawingapp/MainActivity.java
+          package com.example.drawingapp;
+
+          import android.app.Activity;
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.os.Bundle;
+          import android.view.View;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(new CanvasView(this));
+              }
+
+              static class CanvasView extends View {
+                  private final Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  private final Paint starPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  public CanvasView(Context context) {
+                      super(context);
+                      ringPaint.setStyle(Paint.Style.STROKE);
+                      starPaint.setStyle(Paint.Style.FILL);
+                      starPaint.setColor(Color.YELLOW);
+                      textPaint.setColor(Color.WHITE);
+                      textPaint.setTextAlign(Paint.Align.CENTER);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas canvas) {
+                      super.onDraw(canvas);
+                      float density = getResources().getDisplayMetrics().density;
+                      float cx = getWidth() / 2f;
+                      float cy = getHeight() / 2f;
+
+                      // Black background
+                      canvas.drawColor(Color.BLACK);
+
+                      // 1. Draw glowing concentric rings
+                      ringPaint.setStrokeWidth(5f * density);
+                      for (int i = 1; i <= 6; i++) {
+                          float radius = i * 28f * density;
+                          float hue = (i / 6f) * 360f;
+                          ringPaint.setColor(Color.HSVToColor(new float[]{hue, 0.85f, 1.0f}));
+                          canvas.drawCircle(cx, cy, radius, ringPaint);
+                      }
+
+                      // 2. Draw a 5-point star in the center
+                      Path star = new Path();
+                      int points = 5;
+                      float outerRadius = 65f * density;
+                      float innerRadius = 28f * density;
+
+                      for (int i = 0; i < points * 2; i++) {
+                          double angle = (i * Math.PI / points) - (Math.PI / 2.0);
+                          float r = (i % 2 == 0) ? outerRadius : innerRadius;
+                          float x = cx + (float) (Math.cos(angle) * r);
+                          float y = cy + (float) (Math.sin(angle) * r);
+                          if (i == 0) {
+                              star.moveTo(x, y);
+                          } else {
+                              star.lineTo(x, y);
+                          }
+                      }
+                      star.close();
+                      canvas.drawPath(star, starPaint);
+
+                      // 3. Bottom label
+                      textPaint.setTextSize(18f * density);
+                      canvas.drawText("Drawn with Android Canvas", cx, getHeight() - (50f * density), textPaint);
+                  }
+              }
+          }
           EOF
 
       - name: Compile, Sign, Install & Record Video
         run: |
-          SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          ARCH=$(uname -m)
-          
-          # Compile single Swift file directly for the iOS Simulator
-          swiftc main.swift \
-            -sdk "$SDK_PATH" \
-            -target "${ARCH}-apple-ios17.0-simulator" \
-            -parse-as-library \
-            -o DrawingApp.app/DrawingApp
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+          ANDROID_JAR=$(ls "$ANDROID_HOME/platforms/"*/android.jar | sort -V | tail -n 1)
 
-          # Ad-hoc sign the bundle so simctl install accepts it
-          codesign --force --sign - DrawingApp.app
+          # 1. Package AndroidManifest.xml into an empty APK
+          "$BUILD_TOOLS/aapt2" link \
+            --manifest AndroidManifest.xml \
+            -I "$ANDROID_JAR" \
+            -o unsigned.apk
 
-          # Install the app before starting recording
-          xcrun simctl install booted DrawingApp.app
+          # 2. Compile Java source and convert bytecode to DEX
+          mkdir -p classes
+          javac --release 11 -classpath "$ANDROID_JAR" -d classes src/com/example/drawingapp/MainActivity.java
+          "$BUILD_TOOLS/d8" --lib "$ANDROID_JAR" --output . classes/com/example/drawingapp/*.class
 
-          # Start recording simulator screen in the background
-          xcrun simctl io booted recordVideo --codec=h264 swift-drawing.mp4 &
-          RECORD_PID=$!
+          # 3. Insert classes.dex, align, and sign with a generated debug key
+          zip -j unsigned.apk classes.dex
+          "$BUILD_TOOLS/zipalign" -f 4 unsigned.apk aligned.apk
+
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks debug.keystore \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out DrawingApp.apk \
+            aligned.apk
+
+          # 4. Install, record screen, launch activity, and capture screenshot
+          adb install DrawingApp.apk
+          adb shell screenrecord /sdcard/android-drawing.mp4 &
           sleep 1
 
-          # Launch app and let it run for 5 seconds
-          xcrun simctl launch booted com.example.DrawingApp
+          adb shell am start -n com.example.drawingapp/.MainActivity
           sleep 5
 
-          # Capture a still screenshot as well
-          xcrun simctl io booted screenshot swift-drawing.png
+          adb exec-out screencap -p > android-drawing.png
 
-          # Send SIGINT so simctl cleanly finalizes the MP4 file
-          kill -INT "$RECORD_PID"
-          wait "$RECORD_PID"
+          # Send SIGINT so screenrecord cleanly writes the MP4 trailer
+          adb shell pkill -INT screenrecord || true
+          sleep 2
+          adb pull /sdcard/android-drawing.mp4 android-drawing.mp4
 
       - name: Upload Drawing Video & Screenshot
         uses: actions/upload-artifact@v4
         with:
-          name: swift-drawing-output
+          name: android-drawing-output
           path: |
-            swift-drawing.mp4
-            swift-drawing.png
+            android-drawing.mp4
+            android-drawing.png
           retention-days: 7
           
