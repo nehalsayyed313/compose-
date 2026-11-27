@@ -1,93 +1,12 @@
-name: Fast CPU Diffusion Test
+name: Test
 
-on:
-  workflow_dispatch:
-    inputs:
-      prompt:
-        description: "Image generation prompt"
-        required: false
-        default: "A futuristic cyberpunk street at night, neon reflections on wet asphalt, cinematic lighting"
-        type: string
-      steps:
-        description: "Sampling steps (1 to 4 recommended for SD-Turbo)"
-        required: false
-        default: "4"
-        type: string
-      seed:
-        description: "Random seed"
-        required: false
-        default: "42"
-        type: string
+on: workflow_dispatch
+
 
 jobs:
-  test-cpu-diffusion:
+  runtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
 
     steps:
-      - name: Install stable-diffusion.cpp (CPU)
-        run: |
-          ASSET_URL=$(curl -sf "https://api.github.com/repos/leejet/stable-diffusion.cpp/releases?per_page=10" \
-            | jq -r '[.[].assets[] | select(.name | test("bin-Linux-.*-x86_64\\.zip$"))][0].browser_download_url')
-
-          if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
-            echo "Error: Could not find Linux x86_64 release asset."
-            exit 1
-          fi
-
-          echo "Downloading: $ASSET_URL"
-          curl -fL "$ASSET_URL" -o sd.zip
-          unzip -q sd.zip -d sd-bin
-          SD_CLI=$(find sd-bin -type f -name "sd-cli" | head -n 1)
-          chmod +x "$SD_CLI"
-          echo "SD_CLI=$SD_CLI" >> "$GITHUB_ENV"
-
-      - name: Download SD-Turbo checkpoint
-        run: |
-          START=$(date +%s)
-          curl -fL "https://huggingface.co/stabilityai/sd-turbo/resolve/main/sd_turbo.safetensors" \
-            -o sd_turbo.safetensors
-          END=$(date +%s)
-          echo "DOWNLOAD_SEC=$((END - START))" >> "$GITHUB_ENV"
-          echo "Model download time: $((END - START))s"
-
-      - name: Generate image on CPU
-        run: |
-          START=$(date +%s.%N)
-          "$SD_CLI" \
-            -m sd_turbo.safetensors \
-            -p "${{ inputs.prompt }}" \
-            --cfg-scale 1.0 \
-            --steps "${{ inputs.steps }}" \
-            --sampling-method euler_a \
-            -W 512 \
-            -H 512 \
-            -t "$(nproc)" \
-            --seed "${{ inputs.seed }}" \
-            -o output.png
-          END=$(date +%s.%N)
-
-          GEN_TIME=$(awk "BEGIN {printf \"%.2f\", $END - $START}")
-          echo "Generation time (load + ${{ inputs.steps }} steps): ${GEN_TIME}s"
-
-          if [ ! -f output.png ]; then
-            echo "Error: output.png was not created."
-            exit 1
-          fi
-
-          {
-            echo "### Fast CPU Diffusion Result (\`sd-turbo\`)"
-            echo "- **Prompt:** ${{ inputs.prompt }}"
-            echo "- **Resolution / Steps:** 512x512 @ ${{ inputs.steps }} steps (CFG 1.0)"
-            echo "- **Download time:** ${DOWNLOAD_SEC}s"
-            echo "- **Total generation time:** ${GEN_TIME}s"
-            echo ""
-            echo "Download \`generated-image\` from the **Artifacts** section at the bottom of this run page to inspect \`output.png\`."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload generated image
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-image
-          path: output.png
-          
+      - run: |
+           pip install huggingface_hub transformer 
