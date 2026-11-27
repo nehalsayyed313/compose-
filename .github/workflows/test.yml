@@ -1,55 +1,168 @@
-name: iOS Simulator Home Screen Screenshot
+name: iOS Simulator Swift Drawing
 
 on:
   workflow_dispatch:
     inputs:
       device:
-        description: 'Preferred iOS Simulator (optional - auto-detects if not found)'
+        description: 'Preferred iOS Simulator'
         required: false
         default: 'iPhone'
         type: string
 
 jobs:
-  capture-homescreen:
-    name: Capture iOS Home Screen
+  draw-on-ios:
+    name: Build, Record & Capture Swift Drawing
     runs-on: macos-latest
 
     steps:
       - name: Find & Boot Available iOS Simulator
         run: |
           PREFERRED="${{ inputs.device }}"
-          
-          # Find the UDID of an available iPhone matching the input, or grab the first available iPhone
           UDID=$(xcrun simctl list devices available | grep -i "$PREFERRED" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
           
           if [ -z "$UDID" ]; then
-            echo "Preferred device '$PREFERRED' not found. Selecting first available iPhone..."
             UDID=$(xcrun simctl list devices available | grep "iPhone" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
           fi
 
-          if [ -z "$UDID" ]; then
-            echo "Error: No available iOS simulators found on this runner."
-            xcrun simctl list devices available
-            exit 1
-          fi
-
           echo "Booting simulator UDID: $UDID"
-          xcrun simctl boot "$UDID"
+          xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-      - name: Capture Home Screen Screenshot
+      - name: Write SwiftUI Drawing App
         run: |
-          # Ensure SpringBoard UI is settled
-          xcrun simctl ui booted appearance light
-          sleep 3
-          
-          # Capture the screenshot
-          xcrun simctl io booted screenshot ios-homescreen.png
+          mkdir -p DrawingApp.app
 
-      - name: Upload Home Screen Screenshot
+          cat << 'EOF' > main.swift
+          import SwiftUI
+
+          @main
+          struct DrawingApp: App {
+              var body: some Scene {
+                  WindowGroup {
+                      CanvasView()
+                  }
+              }
+          }
+
+          struct CanvasView: View {
+              var body: some View {
+                  ZStack {
+                      Color.black.ignoresSafeArea()
+                      
+                      Canvas { context, size in
+                          let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                          
+                          // 1. Draw glowing concentric rings
+                          for i in 1...6 {
+                              let radius = CGFloat(i) * 28
+                              let rect = CGRect(
+                                  x: center.x - radius,
+                                  y: center.y - radius,
+                                  width: radius * 2,
+                                  height: radius * 2
+                              )
+                              let hue = Double(i) / 6.0
+                              context.stroke(
+                                  Path(ellipseIn: rect),
+                                  with: .color(Color(hue: hue, saturation: 0.85, brightness: 1.0)),
+                                  lineWidth: 5
+                              )
+                          }
+                          
+                          // 2. Draw a 5-point star in the center
+                          var star = Path()
+                          let points = 5
+                          let outerRadius: CGFloat = 65
+                          let innerRadius: CGFloat = 28
+                          
+                          for i in 0..<(points * 2) {
+                              let angle = (CGFloat(i) * .pi / CGFloat(points)) - (.pi / 2)
+                              let r = i % 2 == 0 ? outerRadius : innerRadius
+                              let pt = CGPoint(
+                                  x: center.x + cos(angle) * r,
+                                  y: center.y + sin(angle) * r
+                              )
+                              if i == 0 { star.move(to: pt) } else { star.addLine(to: pt) }
+                          }
+                          star.closeSubpath()
+                          context.fill(star, with: .color(.yellow))
+                      }
+                      
+                      VStack {
+                          Spacer()
+                          Text("Drawn with SwiftUI Canvas")
+                              .font(.headline)
+                              .foregroundColor(.white)
+                              .padding(.bottom, 50)
+                      }
+                  }
+              }
+          }
+          EOF
+
+          cat << 'EOF' > DrawingApp.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>DrawingApp</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.example.DrawingApp</string>
+              <key>CFBundleName</key>
+              <string>DrawingApp</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UILaunchScreen</key>
+              <dict/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Compile, Sign, Install & Record Video
+        run: |
+          SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          ARCH=$(uname -m)
+          
+          # Compile single Swift file directly for the iOS Simulator
+          swiftc main.swift \
+            -sdk "$SDK_PATH" \
+            -target "${ARCH}-apple-ios17.0-simulator" \
+            -parse-as-library \
+            -o DrawingApp.app/DrawingApp
+
+          # Ad-hoc sign the bundle so simctl install accepts it
+          codesign --force --sign - DrawingApp.app
+
+          # Install the app before starting recording
+          xcrun simctl install booted DrawingApp.app
+
+          # Start recording simulator screen in the background
+          xcrun simctl io booted recordVideo --codec=h264 swift-drawing.mp4 &
+          RECORD_PID=$!
+          sleep 1
+
+          # Launch app and let it run for 5 seconds
+          xcrun simctl launch booted com.example.DrawingApp
+          sleep 5
+
+          # Capture a still screenshot as well
+          xcrun simctl io booted screenshot swift-drawing.png
+
+          # Send SIGINT so simctl cleanly finalizes the MP4 file
+          kill -INT "$RECORD_PID"
+          wait "$RECORD_PID"
+
+      - name: Upload Drawing Video & Screenshot
         uses: actions/upload-artifact@v4
         with:
-          name: ios-homescreen-screenshot
-          path: ios-homescreen.png
+          name: swift-drawing-output
+          path: |
+            swift-drawing.mp4
+            swift-drawing.png
           retention-days: 7
           
