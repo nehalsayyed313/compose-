@@ -9,8 +9,8 @@ jobs:
 
     steps:
       - run: |
-           sudo apt update 
-           sudo apt install fastfetc
+           sudo apt update -y
+           sudo apt install fastfetch -y
            fastfetch 
 
 
