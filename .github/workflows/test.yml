@@ -9,7 +9,9 @@ jobs:
 
     steps:
       - run: |
-           git clone --depth 1 https://github.com/apache/arrow-go.git
-           cd arrow-go
-           go build -v
+           git clone --depth 1 https://github.com/aardappel/goose.git
+           cd goose
+           cmake -B build
+           cd build
+           make -j 8
 
