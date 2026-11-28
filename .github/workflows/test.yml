@@ -9,8 +9,7 @@ jobs:
 
     steps:
       - run: |
-           sudo apt update -y
-           sudo apt install gnat -y
-           gnat
-
+           git clone --depth 1 https://github.com/apache/arrow-go.git
+           cd arrow-go
+           go build -v
 
