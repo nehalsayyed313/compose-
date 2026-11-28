@@ -10,7 +10,7 @@ jobs:
     steps:
       - run: |
            sudo apt update -y
-           sudo apt install fastfetch -y
-           fastfetch 
+           sudo apt install gnat -y
+           gnat
 
 
